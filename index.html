@@ -1793,7 +1793,8 @@ function onTokenReceived(resp) {
   accessToken = resp.access_token;
   localStorage.setItem('gsheets_token', accessToken);
   setConnected(true);
-  toast('✓ Conectado a Google Sheets');
+  toast('✓ Conectado a Google Sheets — cargando datos...');
+  loadFromSheets();
 }
 
 function setConnected(ok) {
@@ -1826,6 +1827,7 @@ async function loadFromSheets() {
     const d = await r.json();
     const rows = (d.values || []).slice(1); // skip header
     processSheetRows(rows);
+    cacheSheetData();
     toast('✓ Datos actualizados desde Google Sheets');
     loadAhorros();
   } catch(e) {
@@ -2164,6 +2166,7 @@ async function loadAhorros() {
       monto:  parseFloat(String(row[4]||0).replace(',','.')) || 0,
       moneda: row[5]||'USD'
     })).filter(a=>a.monto>0 && a.tipo);
+    cacheAhorrosData();
     renderAhorros();
   } catch(e) { console.error('loadAhorros:',e); }
 }
@@ -2314,6 +2317,51 @@ function renderAll() {
   renderHistorico();
 }
 
+// ── Cache de datos del Sheet ─────────────────────────────────────────────
+function cacheSheetData() {
+  try {
+    localStorage.setItem('sheetDataCache', JSON.stringify({
+      positions: POSITIONS,
+      closed: CLOSED,
+      rawBuys: RAW_BUYS,
+      ts: Date.now()
+    }));
+  } catch(e) {}
+}
+
+function loadCachedData() {
+  try {
+    const cache = JSON.parse(localStorage.getItem('sheetDataCache') || 'null');
+    if (!cache) return false;
+    Object.keys(POSITIONS).forEach(k => delete POSITIONS[k]);
+    Object.assign(POSITIONS, cache.positions || {});
+    CLOSED.length = 0;
+    CLOSED.push(...(cache.closed || []));
+    Object.keys(RAW_BUYS).forEach(k => delete RAW_BUYS[k]);
+    Object.assign(RAW_BUYS, cache.rawBuys || {});
+    for (const [tk, p] of Object.entries(POSITIONS)) {
+      if (!PRICES[tk]) PRICES[tk] = p.avgPrice;
+    }
+    return true;
+  } catch(e) { return false; }
+}
+
+function cacheAhorrosData() {
+  try { localStorage.setItem('ahorrosCache', JSON.stringify(AHORROS)); } catch(e) {}
+}
+
+function loadCachedAhorros() {
+  try {
+    const cache = JSON.parse(localStorage.getItem('ahorrosCache') || 'null');
+    if (!cache) return false;
+    AHORROS.length = 0;
+    AHORROS.push(...cache);
+    return true;
+  } catch(e) { return false; }
+}
+
+loadCachedData();
+loadCachedAhorros();
 renderAll();
 fetchQuotes();
 initGoogleAuth();
