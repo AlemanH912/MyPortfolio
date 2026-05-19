@@ -425,6 +425,11 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Histórico
     </div>
+    <div class="nav-section">Finanzas personales</div>
+    <div class="nav-item" onclick="goTo('ahorros')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      Ahorros
+    </div>
     <div class="nav-section">Contenido</div>
     <div class="nav-item" onclick="goTo('noticias')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a2 2 0 01-2 2zm0 0a2 2 0 01-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>
@@ -519,23 +524,13 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
         <div class="stat-value" id="h-var-anio">—</div>
         <div class="stat-sub" id="h-var-anio-sub">vs. hace 365 días</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Posiciones abiertas</div>
-        <div class="stat-value" id="h-open-count">—</div>
-        <div class="stat-sub">Balanz + Binance</div>
-      </div>
     </div>
     <!-- Fila 3: métricas de riesgo -->
-    <div class="stats-grid" style="grid-template-columns:repeat(2,1fr)">
+    <div class="stats-grid" style="grid-template-columns:1fr">
       <div class="stat-card">
         <div class="stat-label">Concentración máxima (activo)</div>
         <div class="stat-value" id="h-max-conc" style="font-size:22px">—</div>
         <div class="stat-sub">% del portafolio en un solo ticker</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Ratio Win/Loss</div>
-        <div class="stat-value" id="h-wl-ratio" style="font-size:22px">—</div>
-        <div class="stat-sub">ganancia promedio ÷ pérdida promedio (op. cerradas)</div>
       </div>
     </div>
     <!-- Alertas inteligentes -->
@@ -668,6 +663,83 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
     </div>
   </div>
 
+  <!-- ── AHORROS ──────────────────────────────── -->
+  <div class="page" id="page-ahorros">
+    <div class="stats-grid">
+      <div class="stat-card green">
+        <div class="stat-label">Saldo disponible</div>
+        <div class="stat-value" id="ah-saldo">$—</div>
+        <div class="stat-sub" id="ah-saldo-sub">ingresos − gastos realizados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total ingresos</div>
+        <div class="stat-value pos" id="ah-ingresos">$—</div>
+        <div class="stat-sub" id="ah-ing-sub">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Gastos realizados</div>
+        <div class="stat-value neg" id="ah-gastos">$—</div>
+        <div class="stat-sub" id="ah-gas-sub">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Gastos comprometidos</div>
+        <div class="stat-value" id="ah-futuros" style="color:var(--gold2)">$—</div>
+        <div class="stat-sub" id="ah-fut-sub">próximos gastos</div>
+      </div>
+    </div>
+
+    <div class="grid2 mb24">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Gastos por categoría</span></div>
+        <div class="chart-sm"><canvas id="chartAhCat"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Flujo mensual · últimos 6 meses</span></div>
+        <div class="chart-sm"><canvas id="chartAhMes"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card mb24">
+      <div class="card-header">
+        <span class="card-title">Próximos gastos</span>
+        <button class="new-op-btn" onclick="openAhModal('GASTO_FUTURO')">+ Agregar</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Fecha</th><th>Categoría</th><th>Descripción</th>
+            <th class="r">Monto</th><th class="r">Moneda</th>
+          </tr></thead>
+          <tbody id="ah-fut-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Historial de movimientos</span>
+        <div style="display:flex;gap:8px">
+          <button class="new-op-btn" onclick="openAhModal('INGRESO')">+ Ingreso</button>
+          <button class="new-op-btn" style="background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.3)" onclick="openAhModal('GASTO')">+ Gasto</button>
+        </div>
+      </div>
+      <div id="ah-hist-filters" class="year-filters" style="padding:0 4px">
+        <button class="year-filter-btn active" onclick="setAhFilter(null,this)">Todos</button>
+        <button class="year-filter-btn" onclick="setAhFilter('INGRESO',this)">Ingresos</button>
+        <button class="year-filter-btn" onclick="setAhFilter('GASTO',this)">Gastos</button>
+      </div>
+      <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th>
+            <th class="r">Monto</th><th class="r">Moneda</th>
+          </tr></thead>
+          <tbody id="ah-hist-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- ── NOTICIAS ───────────────────────────────── -->
   <div class="page" id="page-noticias">
     <div class="sec-hdr">
@@ -700,6 +772,41 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
   <button class="detail-close" onclick="closeDetail()">✕ Cerrar</button>
   <div id="detailContent"></div>
 </div>
+
+<!-- MODAL AHORROS -->
+<div class="overlay" id="mAh" onclick="if(event.target===this)closeAhModal()">
+<div class="modal">
+  <h2 id="ah-modal-title">Nuevo movimiento</h2>
+  <div class="op-type-row">
+    <div class="op-type-btn active" id="ahBtn-INGRESO" onclick="setAhType('INGRESO',this)">⬆ Ingreso</div>
+    <div class="op-type-btn" id="ahBtn-GASTO" onclick="setAhType('GASTO',this)">⬇ Gasto</div>
+    <div class="op-type-btn" id="ahBtn-GASTO_FUTURO" onclick="setAhType('GASTO_FUTURO',this)">📅 Gasto futuro</div>
+  </div>
+  <div class="fgrid">
+    <div class="frow"><label>Fecha</label><input type="date" id="ahFech"></div>
+    <div class="frow">
+      <label>Categoría</label>
+      <select id="ahCat">
+        <option>Sueldo</option><option>Vivienda</option><option>Comida</option>
+        <option>Transporte</option><option>Salud</option><option>Educación</option>
+        <option>Entretenimiento</option><option>Ropa</option><option>Servicios</option>
+        <option>Viajes</option><option>Otro</option>
+      </select>
+    </div>
+  </div>
+  <div class="frow"><label>Descripción</label><input type="text" id="ahDesc" placeholder="Ej: alquiler enero, sueldo…"></div>
+  <div class="fgrid">
+    <div class="frow"><label>Monto</label><input type="number" id="ahMonto" step="any" placeholder="0.00"></div>
+    <div class="frow">
+      <label>Moneda</label>
+      <select id="ahMoneda"><option>USD</option><option>ARS</option></select>
+    </div>
+  </div>
+  <div class="mbtns">
+    <button class="mbtn cancel" onclick="closeAhModal()">Cancelar</button>
+    <button class="mbtn save" onclick="saveAhorro()">Guardar</button>
+  </div>
+</div></div>
 
 <!-- MODAL MOVIMIENTO -->
 <div class="overlay" id="mOv" onclick="if(event.target===this)closeModal()">
@@ -927,16 +1034,17 @@ async function fetchQuotes() {
 // ═══════════════════════════════════════════════════
 //  NAV
 // ═══════════════════════════════════════════════════
-const TITLES = {home:'Home',operaciones:'Operaciones activas',historico:'Histórico',noticias:'Noticias financieras',videos:'Videos · Análisis bursátil'};
+const TITLES = {home:'Home',operaciones:'Operaciones activas',historico:'Histórico',ahorros:'Ahorros personales',noticias:'Noticias financieras',videos:'Videos · Análisis bursátil'};
 
 function goTo(page) {
   document.querySelectorAll('.nav-item').forEach((el,i) => {
-    const pages = ['home','operaciones','historico','noticias','videos'];
+    const pages = ['home','operaciones','historico','ahorros','noticias','videos'];
     el.classList.toggle('active', pages[i]===page);
   });
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id==='page-'+page));
-  document.getElementById('pageTitle').textContent = TITLES[page];
+  document.getElementById('pageTitle').textContent = TITLES[page]||page;
   closeDetail();
+  if (page==='ahorros') renderAhorros();
   if (page==='noticias') loadNoticias();
   if (page==='videos') loadVideos();
 }
@@ -991,14 +1099,9 @@ function renderHome() {
   document.getElementById('h-var-mes-sub').textContent  = fmtVarSub(prevMonth, 'hace 30 días');
   document.getElementById('h-var-anio').innerHTML   = fmtVar(prevYear);
   document.getElementById('h-var-anio-sub').textContent = fmtVarSub(prevYear,  'hace 365 días');
-  document.getElementById('h-open-count').textContent   = openCount;
-
   // Fila 3: riesgo
   document.getElementById('h-max-conc').textContent = `${(risk.maxConc*100).toFixed(0)}% (${risk.maxConcTk})`;
   document.getElementById('h-max-conc').className   = 'stat-value ' + (risk.maxConc>0.35?'neg':risk.maxConc>0.25?'':'pos');
-  const wlEl = document.getElementById('h-wl-ratio');
-  wlEl.textContent = risk.winLossRatio.toFixed(2);
-  wlEl.className   = 'stat-value ' + (risk.winLossRatio>=1?'pos':'neg');
 
   // Categorías
   const cats = getCategoryBreakdown();
@@ -1666,8 +1769,8 @@ function initGoogleAuth() {
     scope: SCOPES,
     callback: onTokenReceived,
   });
-  // Auto-restore token from sessionStorage y recargar datos
-  const saved = sessionStorage.getItem('gsheets_token');
+  // Auto-restore token desde localStorage y recargar datos automáticamente
+  const saved = localStorage.getItem('gsheets_token');
   if (saved) {
     accessToken = saved;
     setConnected(true);
@@ -1677,9 +1780,8 @@ function initGoogleAuth() {
 
 function handleGoogleAuth() {
   if (accessToken) {
-    // Already connected — disconnect
     accessToken = null;
-    sessionStorage.removeItem('gsheets_token');
+    localStorage.removeItem('gsheets_token');
     setConnected(false);
     return;
   }
@@ -1689,7 +1791,7 @@ function handleGoogleAuth() {
 function onTokenReceived(resp) {
   if (resp.error) { toast('⚠ Error al conectar con Google', true); return; }
   accessToken = resp.access_token;
-  sessionStorage.setItem('gsheets_token', accessToken);
+  localStorage.setItem('gsheets_token', accessToken);
   setConnected(true);
   toast('✓ Conectado a Google Sheets');
 }
@@ -1719,12 +1821,13 @@ async function loadFromSheets() {
     const r = await fetch(url, {
       headers: { Authorization: 'Bearer ' + accessToken }
     });
-    if (r.status === 401) { accessToken=null; setConnected(false); toast('Sesión expirada — reconectá', true); return; }
+    if (r.status === 401) { accessToken=null; localStorage.removeItem('gsheets_token'); setConnected(false); toast('Sesión expirada — reconectá', true); return; }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     const rows = (d.values || []).slice(1); // skip header
     processSheetRows(rows);
     toast('✓ Datos actualizados desde Google Sheets');
+    loadAhorros();
   } catch(e) {
     console.error(e);
     toast('⚠ Error al leer Sheets: ' + e.message, true);
@@ -1862,7 +1965,7 @@ async function appendToSheet(row) {
       },
       body: JSON.stringify({ values: [row] })
     });
-    if (r.status === 401) { accessToken=null; setConnected(false); toast('Sesión expirada — reconectá', true); return false; }
+    if (r.status === 401) { accessToken=null; localStorage.removeItem('gsheets_token'); setConnected(false); toast('Sesión expirada — reconectá', true); return false; }
     if (!r.ok) {
       const errBody = await r.json().catch(() => ({}));
       console.error('appendToSheet error', r.status, JSON.stringify(errBody));
@@ -2035,6 +2138,174 @@ let opCatFilter = null;
 function setOpCatFilter(cat) {
   opCatFilter = (opCatFilter === cat) ? null : cat;
   renderOperaciones();
+}
+
+// ═══════════════════════════════════════════════════
+//  AHORROS
+// ═══════════════════════════════════════════════════
+const AHORROS_SHEET = 'AHORROS';
+let AHORROS = [];
+let ahType  = 'INGRESO';
+let ahFilter = null;
+
+async function loadAhorros() {
+  if (!accessToken) return;
+  try {
+    const range = encodeURIComponent(AHORROS_SHEET + '!A:F');
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}`;
+    const r = await fetch(url, { headers:{ Authorization:'Bearer '+accessToken } });
+    if (!r.ok) return;
+    const d = await r.json();
+    AHORROS = (d.values||[]).slice(1).map(row=>({
+      fecha:  row[0]||'',
+      tipo:   (row[1]||'').trim().toUpperCase(),
+      cat:    row[2]||'Otro',
+      desc:   row[3]||'',
+      monto:  parseFloat(String(row[4]||0).replace(',','.')) || 0,
+      moneda: row[5]||'USD'
+    })).filter(a=>a.monto>0 && a.tipo);
+    renderAhorros();
+  } catch(e) { console.error('loadAhorros:',e); }
+}
+
+async function saveAhorro() {
+  const fecha  = document.getElementById('ahFech').value;
+  const cat    = document.getElementById('ahCat').value;
+  const desc   = document.getElementById('ahDesc').value.trim();
+  const monto  = parseFloat(document.getElementById('ahMonto').value)||0;
+  const moneda = document.getElementById('ahMoneda').value;
+  if (!fecha||!monto) { toast('⚠ Completá fecha y monto',true); return; }
+  closeAhModal();
+  const fechaFmt = fecha.split('-').reverse().join('/');
+  const row = [fechaFmt, ahType, cat, desc, monto, moneda];
+  if (accessToken) {
+    const range = encodeURIComponent(AHORROS_SHEET+'!A:F');
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+    try {
+      const r = await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({values:[row]})});
+      if (r.ok) { toast('✓ Guardado en Sheets'); loadAhorros(); }
+      else toast('⚠ Error al guardar',true);
+    } catch(e) { toast('⚠ Error al guardar',true); }
+  } else {
+    AHORROS.push({fecha:fechaFmt,tipo:ahType,cat,desc,monto,moneda});
+    renderAhorros();
+    toast('✓ Guardado localmente — conectá Sheets para sincronizar');
+  }
+}
+
+function openAhModal(type) {
+  ahType = type||'INGRESO';
+  document.getElementById('ahFech').value  = new Date().toISOString().split('T')[0];
+  document.getElementById('ahDesc').value  = '';
+  document.getElementById('ahMonto').value = '';
+  ['INGRESO','GASTO','GASTO_FUTURO'].forEach(t=>{
+    const btn = document.getElementById('ahBtn-'+t);
+    if (btn) btn.classList.toggle('active', t===ahType);
+  });
+  document.getElementById('mAh').classList.add('open');
+}
+function closeAhModal() { document.getElementById('mAh').classList.remove('open'); }
+function setAhType(type,el) {
+  ahType = type;
+  document.querySelectorAll('#mAh .op-type-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+function setAhFilter(tipo) {
+  ahFilter = ahFilter===tipo ? null : tipo;
+  document.querySelectorAll('#ah-hist-filters .year-filter-btn').forEach(b=>{
+    b.classList.toggle('active', (b.textContent.includes('Ingreso')&&tipo==='INGRESO')||(b.textContent.includes('Gasto')&&!b.textContent.includes('Todos')&&tipo==='GASTO')||(!tipo&&b.textContent.includes('Todos')));
+  });
+  renderAhorros();
+}
+
+function renderAhorros() {
+  const ingresos = AHORROS.filter(a=>a.tipo==='INGRESO');
+  const gastos   = AHORROS.filter(a=>a.tipo==='GASTO');
+  const futuros  = AHORROS.filter(a=>a.tipo==='GASTO_FUTURO');
+  const totalIng = ingresos.reduce((s,a)=>s+a.monto,0);
+  const totalGas = gastos.reduce((s,a)=>s+a.monto,0);
+  const totalFut = futuros.reduce((s,a)=>s+a.monto,0);
+  const saldo    = totalIng - totalGas;
+
+  const ahSaldo = document.getElementById('ah-saldo');
+  if (!ahSaldo) return;
+  ahSaldo.textContent = fmt(saldo);
+  ahSaldo.className   = 'stat-value '+(saldo>=0?'pos':'neg');
+  document.getElementById('ah-ingresos').textContent = fmt(totalIng);
+  document.getElementById('ah-gastos').textContent   = fmt(totalGas);
+  document.getElementById('ah-futuros').textContent  = fmt(totalFut);
+  document.getElementById('ah-ing-sub').textContent  = `${ingresos.length} movimientos`;
+  document.getElementById('ah-gas-sub').textContent  = `${gastos.length} movimientos`;
+  document.getElementById('ah-fut-sub').textContent  = `${futuros.length} gastos pendientes`;
+
+  // Próximos gastos ordenados por fecha
+  const futSorted = [...futuros].sort((a,b)=>(parseDateDMY(a.fecha)||0)-(parseDateDMY(b.fecha)||0));
+  document.getElementById('ah-fut-table').innerHTML = futSorted.length
+    ? futSorted.map(a=>`<tr>
+        <td style="color:var(--text3);font-size:12px">${a.fecha}</td>
+        <td><span class="plat">${a.cat}</span></td>
+        <td>${a.desc||'—'}</td>
+        <td class="r neg"><strong>${fmt(a.monto)} ${a.moneda}</strong></td>
+        <td class="r" style="color:var(--text3)">${a.moneda}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" style="color:var(--text3);padding:16px;text-align:center">Sin gastos futuros registrados</td></tr>';
+
+  // Historial
+  const hist = (ahFilter ? AHORROS.filter(a=>a.tipo===ahFilter) : AHORROS.filter(a=>a.tipo!=='GASTO_FUTURO'))
+    .slice().sort((a,b)=>(parseDateDMY(b.fecha)||0)-(parseDateDMY(a.fecha)||0));
+  document.getElementById('ah-hist-table').innerHTML = hist.length
+    ? hist.map(a=>`<tr>
+        <td style="color:var(--text3);font-size:12px">${a.fecha}</td>
+        <td><span class="badge ${a.tipo==='INGRESO'?'bp':'bn'}">${a.tipo==='INGRESO'?'Ingreso':'Gasto'}</span></td>
+        <td><span class="plat">${a.cat}</span></td>
+        <td>${a.desc||'—'}</td>
+        <td class="r ${a.tipo==='INGRESO'?'pos':'neg'}">${fmt(a.monto)}</td>
+        <td class="r" style="color:var(--text3)">${a.moneda}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6" style="color:var(--text3);padding:16px;text-align:center">Sin movimientos registrados</td></tr>';
+
+  renderAhCharts(gastos, ingresos);
+}
+
+function renderAhCharts(gastos, ingresos) {
+  dc('chartAhCat');
+  const byCat = {};
+  gastos.forEach(a=>{ if(!byCat[a.cat]) byCat[a.cat]=0; byCat[a.cat]+=a.monto; });
+  const catKeys = Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]);
+  if (catKeys.length) {
+    charts.chartAhCat = new Chart(document.getElementById('chartAhCat'),{
+      type:'doughnut', plugins:[pieLabelsPlugin],
+      data:{labels:catKeys,datasets:[{data:catKeys.map(k=>byCat[k]),backgroundColor:DIST_COLORS.slice(0,catKeys.length),borderWidth:2,borderColor:'#0d1428'}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'right',labels:{font:{size:11},padding:8,boxWidth:10}},tooltip:{callbacks:{label:c=>` ${fmt(c.parsed)}`}}}}
+    });
+  }
+
+  dc('chartAhMes');
+  const months = {};
+  const now = new Date();
+  for (let i=5;i>=0;i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    months[key] = {label:d.toLocaleDateString('es-AR',{month:'short',year:'2-digit'}), ing:0, gas:0};
+  }
+  [...ingresos,...gastos].forEach(a=>{
+    const d = parseDateDMY(a.fecha); if(!d) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if (!months[key]) return;
+    if (a.tipo==='INGRESO') months[key].ing+=a.monto; else months[key].gas+=a.monto;
+  });
+  const mKeys = Object.keys(months).sort();
+  charts.chartAhMes = new Chart(document.getElementById('chartAhMes'),{
+    type:'bar',
+    data:{labels:mKeys.map(k=>months[k].label),datasets:[
+      {label:'Ingresos',data:mKeys.map(k=>months[k].ing),backgroundColor:'rgba(16,185,129,0.7)',borderRadius:4},
+      {label:'Gastos',  data:mKeys.map(k=>months[k].gas), backgroundColor:'rgba(239,68,68,0.6)', borderRadius:4}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:11},padding:10,boxWidth:10}},tooltip:{callbacks:{label:c=>` ${fmt(c.parsed.y)}`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{callback:v=>'$'+Math.round(v/1000)+'k'}}}}
+  });
 }
 
 function renderAll() {
