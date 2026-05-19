@@ -417,7 +417,7 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
   .topbar-title{font-size:17px}
   .hamburger{display:flex}
   .sync-indicator{display:none}
-  #connectBtn{display:none}
+  #connectBtn .btn-label{display:none}
   .btn-label{display:none}
   .topbar-right{gap:6px}
   .refresh-btn,.new-op-btn{padding:8px 10px;font-size:0}
@@ -552,9 +552,9 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <span id="syncStatus">Sin conectar</span>
       </div>
-      <button class="connect-btn" id="connectBtn" onclick="handleGoogleAuth()">
+      <button class="connect-btn" id="connectBtn" onclick="handleGoogleAuth()" title="Conectar Google Sheets">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Conectar Sheets
+        <span class="btn-label">Conectar Sheets</span>
       </button>
       <button class="eye-btn" id="eyeBtn" onclick="toggleHide()" title="Ocultar/mostrar valores">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="eyeIcon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
