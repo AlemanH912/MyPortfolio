@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Portfolio · Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -390,6 +390,22 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
 .pin-btn:hover{background:var(--blue2)}
 .pin-error{color:var(--red);font-size:12px;margin-top:12px;min-height:16px}
 
+/* ── DATOS / SPREADSHEET ────────────────────────── */
+.xl-table{border-collapse:collapse;font-size:12px;width:100%;min-width:700px;font-family:'DM Sans',monospace}
+.xl-table th{background:#0d1428;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:7px 10px;border:1px solid rgba(255,255,255,0.1);text-align:center;position:sticky;top:0;z-index:2;white-space:nowrap}
+.xl-table th.xl-rn{background:#111c35;color:var(--text3);width:32px;font-size:10px}
+.xl-table td{padding:6px 10px;border:1px solid rgba(255,255,255,0.07);color:var(--text);vertical-align:middle;white-space:nowrap}
+.xl-table td.xl-rn{background:#0d1428;color:var(--text3);font-size:10px;text-align:center;font-weight:500;width:32px}
+.xl-table tbody tr:hover td{background:rgba(59,130,246,0.06)}
+.xl-table tbody tr:hover td.xl-rn{background:#111c35}
+.xl-chip{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600}
+.xl-compra{background:rgba(16,185,129,.15);color:#34d399}
+.xl-venta{background:rgba(239,68,68,.15);color:#f87171}
+.xl-ingreso{background:rgba(59,130,246,.15);color:#93c5fd}
+.xl-egreso{background:rgba(249,115,22,.15);color:#fb923c}
+.xl-stats{display:flex;gap:20px;padding:10px 14px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--border);font-size:12px;flex-wrap:wrap}
+.xl-stat{color:var(--text3)}.xl-stat strong{color:var(--text);margin-left:4px}
+
 /* ── RESPONSIVE ─────────────────────────────────── */
 .hamburger{display:none;background:none;border:none;color:var(--text2);cursor:pointer;padding:6px;border-radius:8px;align-items:center;justify-content:center;flex-shrink:0}
 .hamburger:hover{background:var(--navy3)}
@@ -419,9 +435,10 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
   .sync-indicator{display:none}
   #connectBtn .btn-label{display:none}
   .btn-label{display:none}
-  .topbar-right{gap:6px}
-  .refresh-btn,.new-op-btn{padding:8px 10px;font-size:0}
-  .refresh-btn svg,.new-op-btn svg{width:16px;height:16px}
+  #loadSheetsBtn{display:none}
+  .topbar-right{gap:5px;flex-shrink:0}
+  .refresh-btn,.new-op-btn,.connect-btn,.eye-btn{padding:7px 9px;font-size:0;min-width:34px}
+  .refresh-btn svg,.new-op-btn svg,.connect-btn svg,.eye-btn svg{width:15px;height:15px}
 
   /* Páginas */
   .page{padding:14px 12px 28px}
@@ -519,6 +536,10 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
     <div class="nav-item" onclick="goTo('ahorros')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
       Ahorros
+    </div>
+    <div class="nav-item" onclick="goTo('datos')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+      Datos
     </div>
     <div class="nav-section">Contenido</div>
     <div class="nav-item" onclick="goTo('noticias')">
@@ -833,6 +854,28 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
     </div>
   </div>
 
+  <!-- ── DATOS ────────────────────────────────── -->
+  <div class="page" id="page-datos">
+    <div class="sec-hdr" style="margin-bottom:16px">
+      <div>
+        <div class="sec-title">Datos · MOVIMIENTOS</div>
+        <div class="sec-sub">Vista directa de la hoja de cálculo</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="datos-filter-row" class="year-filters" style="margin-bottom:0"></div>
+        <button class="refresh-btn" onclick="loadFromSheets()" title="Recargar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+          <span class="btn-label">Recargar</span>
+        </button>
+      </div>
+    </div>
+    <div class="card" id="datos-card">
+      <div id="datos-content" style="overflow-x:auto">
+        <div class="loading-box" style="padding:40px">Cargá Google Sheets para ver los datos</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── NOTICIAS ───────────────────────────────── -->
   <div class="page" id="page-noticias">
     <div class="sec-hdr">
@@ -876,6 +919,10 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
   <button class="mnb" id="mnb-ahorros" onclick="goTo('ahorros')">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
     <span>Ahorros</span>
+  </button>
+  <button class="mnb" id="mnb-datos" onclick="goTo('datos')">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+    <span>Datos</span>
   </button>
   <button class="mnb" onclick="toggleSidebar()">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -1160,7 +1207,7 @@ function closeSidebar() {
   document.getElementById('sidebarOverlay').classList.remove('mob-open');
 }
 
-const TITLES = {home:'Home',operaciones:'Operaciones activas',historico:'Histórico',ahorros:'Ahorros personales',noticias:'Noticias financieras',videos:'Videos · Análisis bursátil'};
+const TITLES = {home:'Home',operaciones:'Operaciones activas',historico:'Histórico',ahorros:'Ahorros personales',datos:'Datos · Movimientos',noticias:'Noticias financieras',videos:'Videos · Análisis bursátil'};
 
 function goTo(page) {
   document.querySelectorAll('.nav-item').forEach((el,i) => {
@@ -1177,6 +1224,7 @@ function goTo(page) {
   closeSidebar();
   closeDetail();
   if (page==='ahorros') renderAhorros();
+  if (page==='datos')   renderDatos();
   if (page==='noticias') loadNoticias();
   if (page==='videos') loadVideos();
 }
@@ -1727,36 +1775,52 @@ function saveMove() {
 // ═══════════════════════════════════════════════════
 //  NOTICIAS
 // ═══════════════════════════════════════════════════
+async function fetchRSS(url) {
+  const r = await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(url),{signal:AbortSignal.timeout(10000)});
+  if (!r.ok) throw new Error('HTTP '+r.status);
+  const d = await r.json();
+  const parser = new DOMParser();
+  return parser.parseFromString(d.contents,'application/xml');
+}
+
 async function loadNoticias() {
   const el = document.getElementById('noticias-content');
   el.innerHTML = '<div class="loading-box">Cargando noticias...</div>';
-  try {
-    const r = await fetch('https://api.allorigins.win/get?url='+encodeURIComponent('https://finanzasargy.com/feed/'),{signal:AbortSignal.timeout(10000)});
-    if (!r.ok) throw new Error();
-    const d = await r.json();
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(d.contents,'application/xml');
-    const items = xml.querySelectorAll('item');
-    const news = Array.from(items).slice(0,12).map(item => ({
-      title: item.querySelector('title')?.textContent||'',
-      link: item.querySelector('link')?.textContent||'#',
-      date: item.querySelector('pubDate')?.textContent||'',
-      cat: item.querySelector('category')?.textContent||'Finanzas',
-    }));
-    if (!news.length) throw new Error('no items');
-    el.innerHTML = '<div class="news-grid">'+news.map(n=>`
-      <div class="news-card" onclick="window.open('${n.link}','_blank')">
-        <div class="news-tag">${n.cat}</div>
-        <div class="news-title">${n.title}</div>
-        <div class="news-date">${formatNewsDate(n.date)}</div>
-      </div>`).join('')+'</div>';
-  } catch(e) {
-    el.innerHTML = `<div class="loading-box">
-      <div style="font-size:32px;margin-bottom:12px">📰</div>
-      <div>No se pudo cargar el feed de Finanzas Argy.</div>
-      <div style="margin-top:8px"><a href="https://finanzasargy.com" target="_blank" style="color:var(--blue4)">Abrir sitio directamente →</a></div>
-    </div>`;
+
+  const FEEDS = [
+    {name:'Finanzas Argy', url:'https://finanzasargy.com/feed/', color:'#3b82f6',  home:'https://finanzasargy.com'},
+    {name:'Investing',     url:'https://es.investing.com/rss/news_285.rss', color:'#f97316', home:'https://es.investing.com/news/argentina'},
+  ];
+
+  let allNews = [];
+  for (const feed of FEEDS) {
+    try {
+      const xml = await fetchRSS(feed.url);
+      const items = xml.querySelectorAll('item');
+      Array.from(items).slice(0,6).forEach(item => {
+        const title = item.querySelector('title')?.textContent||'';
+        const link  = item.querySelector('link')?.textContent||feed.home;
+        const date  = item.querySelector('pubDate')?.textContent||'';
+        const cat   = item.querySelector('category')?.textContent||feed.name;
+        if (title) allNews.push({title, link, date, cat, source:feed.name, color:feed.color});
+      });
+    } catch(e) { console.warn('RSS error',feed.name,e); }
   }
+
+  if (!allNews.length) {
+    el.innerHTML = `<div class="loading-box"><div style="font-size:32px;margin-bottom:12px">📰</div><div>No se pudieron cargar las noticias.</div></div>`;
+    return;
+  }
+
+  // Ordenar por fecha desc
+  allNews.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  el.innerHTML = '<div class="news-grid">'+allNews.map(n=>`
+    <div class="news-card" onclick="window.open('${n.link.replace(/'/g,"\\'")}','_blank')">
+      <div class="news-tag" style="background:${n.color}22;color:${n.color}">${n.source}</div>
+      <div class="news-title">${n.title}</div>
+      <div class="news-date">${formatNewsDate(n.date)}</div>
+    </div>`).join('')+'</div>';
 }
 
 function formatNewsDate(str) {
@@ -1769,7 +1833,6 @@ function formatNewsDate(str) {
 // ═══════════════════════════════════════════════════
 const CHANNELS = [
   {name:'Clave Bursátil',id:'UCXTtI0Ioku0XXo4zq5U3J_A',color:'#1a4bbd'},
-  {name:'Capa Investing', id:'UCwVTd7dQW6o_Nw_c72f4gJA',color:'#10b981'},
 ];
 
 async function loadVideos() {
@@ -1785,7 +1848,7 @@ async function loadVideos() {
       const parser = new DOMParser();
       const xml = parser.parseFromString(d.contents,'application/xml');
       const entries = xml.querySelectorAll('entry');
-      Array.from(entries).slice(0,5).forEach(entry=>{
+      Array.from(entries).slice(0,3).forEach(entry=>{
         const videoId = entry.querySelector('videoId')?.textContent || entry.querySelector('id')?.textContent?.split(':').pop();
         const title = entry.querySelector('title')?.textContent||'';
         const published = entry.querySelector('published')?.textContent||'';
@@ -1959,6 +2022,7 @@ async function loadFromSheets() {
     const d = await r.json();
     const rows = (d.values || []).slice(1); // skip header
     processSheetRows(rows);
+    _dataFresh = true;
     cacheSheetData();
     toast('✓ Datos actualizados desde Google Sheets');
     loadAhorros();
@@ -1985,6 +2049,7 @@ function parsePrice(str) {
 }
 
 function processSheetRows(rows) {
+  RAW_SHEET_ROWS = rows; // guardar copia cruda para la vista Datos
   // Re-compute open positions from scratch using FIFO
   const buys = {};
   const sells = {};
@@ -2115,7 +2180,10 @@ async function appendToSheet(row) {
 // ═══════════════════════════════════════════════════
 //  SNAPSHOTS para variaciones
 // ═══════════════════════════════════════════════════
+let _dataFresh = false; // solo guardar snapshot con datos reales de Sheets
+
 function savePortfolioSnapshot() {
+  if (!_dataFresh) return; // nunca guardar con datos cacheados
   const val = getPortfolioValue();
   if (!val) return;
   try {
@@ -2441,6 +2509,83 @@ function renderAhCharts(gastos, ingresos) {
       plugins:{legend:{position:'top',labels:{font:{size:11},padding:10,boxWidth:10}},tooltip:{callbacks:{label:c=>` ${fmt(c.parsed.y)}`}}},
       scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{callback:v=>'$'+Math.round(v/1000)+'k'}}}}
   });
+}
+
+// ═══════════════════════════════════════════════════
+//  DATOS (vista tipo Excel de la hoja)
+// ═══════════════════════════════════════════════════
+let RAW_SHEET_ROWS = [];
+let datosFilter = null;
+
+function renderDatos() {
+  const el = document.getElementById('datos-content');
+  if (!el) return;
+
+  const rows = datosFilter
+    ? RAW_SHEET_ROWS.filter(r => (r[2]||'').toUpperCase() === datosFilter)
+    : RAW_SHEET_ROWS;
+
+  if (!rows.length) {
+    el.innerHTML = '<div class="loading-box" style="padding:40px">'+(RAW_SHEET_ROWS.length ? 'Sin resultados para el filtro' : 'Cargá Google Sheets para ver los datos')+'</div>';
+    // Render filter buttons anyway
+    const allTypes = [...new Set(RAW_SHEET_ROWS.map(r=>(r[2]||'').toUpperCase()).filter(Boolean))].sort();
+    const fc = document.getElementById('datos-filter-row');
+    if (fc) fc.innerHTML = allTypes.map(t=>`<button class="year-filter-btn${datosFilter===t?' active':''}" onclick="setDatosFilter('${t}')">${t}</button>`).join('') + (datosFilter ? `<button class="year-filter-btn" onclick="setDatosFilter(null)">✕ Todos</button>` : '');
+    return;
+  }
+
+  // Stats rápidas
+  const compras  = rows.filter(r=>(r[2]||'').toUpperCase()==='COMPRA').length;
+  const ventas   = rows.filter(r=>(r[2]||'').toUpperCase()==='VENTA').length;
+  const ingresos = rows.filter(r=>(r[2]||'').toUpperCase()==='INGRESO').length;
+  const egresos  = rows.filter(r=>(r[2]||'').toUpperCase()==='EGRESO').length;
+
+  const COLS = ['Fecha','Plataforma','Tipo','Activo','Cantidad','Precio USD','Notas'];
+
+  el.innerHTML = `
+    <div class="xl-stats">
+      <div class="xl-stat">${rows.length} filas<strong>${datosFilter ? ' (filtrado)' : ''}</strong></div>
+      ${compras  ? `<div class="xl-stat">Compras <strong>${compras}</strong></div>` : ''}
+      ${ventas   ? `<div class="xl-stat">Ventas <strong>${ventas}</strong></div>` : ''}
+      ${ingresos ? `<div class="xl-stat">Ingresos <strong>${ingresos}</strong></div>` : ''}
+      ${egresos  ? `<div class="xl-stat">Egresos <strong>${egresos}</strong></div>` : ''}
+    </div>
+    <table class="xl-table">
+      <thead><tr>
+        <th class="xl-rn">#</th>
+        ${COLS.map((c,i)=>`<th style="text-align:${i>=4?'right':'left'}">${c}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+        ${rows.map((r,i)=>{
+          const tipo = (r[2]||'').toUpperCase();
+          const tipoClass = {COMPRA:'xl-compra',VENTA:'xl-venta',INGRESO:'xl-ingreso',EGRESO:'xl-egreso'}[tipo]||'';
+          const qty   = parseFloat(String(r[4]||0).replace(',','.'));
+          const price = parseFloat(String(r[5]||0).replace(',','.'));
+          return `<tr>
+            <td class="xl-rn">${i+1}</td>
+            <td>${r[0]||''}</td>
+            <td><span style="color:var(--text3);font-size:11px">${r[1]||''}</span></td>
+            <td>${tipo ? `<span class="xl-chip ${tipoClass}">${tipo}</span>` : ''}</td>
+            <td><strong>${r[3]||''}</strong></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${qty ? qty.toLocaleString('es-AR',{maximumFractionDigits:6}) : ''}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${price ? '$'+price.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:4}) : ''}</td>
+            <td style="color:var(--text3);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis">${r[6]||''}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+
+  // Filter buttons
+  const allTypes = [...new Set(RAW_SHEET_ROWS.map(r=>(r[2]||'').toUpperCase()).filter(Boolean))].sort();
+  const fc = document.getElementById('datos-filter-row');
+  if (fc) fc.innerHTML =
+    `<button class="year-filter-btn${!datosFilter?' active':''}" onclick="setDatosFilter(null)">Todos</button>`+
+    allTypes.map(t=>`<button class="year-filter-btn${datosFilter===t?' active':''}" onclick="setDatosFilter('${t}')">${t}</button>`).join('');
+}
+
+function setDatosFilter(tipo) {
+  datosFilter = tipo;
+  renderDatos();
 }
 
 function renderAll() {
