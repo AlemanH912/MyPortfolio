@@ -856,7 +856,63 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
         </table>
       </div>
     </div>
-  </div>
+
+    <!-- ── PROYECCIÓN DE AHORROS ──────────────────── -->
+    <div class="card" style="margin-top:8px">
+      <div class="card-header">
+        <div>
+          <span class="card-title">Proyección · Fondo de ahorros</span>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Saldo mes a mes considerando tus gastos comprometidos</div>
+        </div>
+        <button onclick="calcAhorroProyeccion()" style="padding:7px 14px;background:var(--blue);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif">Calcular</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;padding:18px;border-bottom:1px solid var(--border)">
+        <div class="frow" style="margin:0">
+          <label>Saldo actual de ahorros (USD)</label>
+          <input type="number" id="pa-base" placeholder="0" step="100">
+          <div class="hint">Tu fondo de ahorros hoy</div>
+        </div>
+        <div class="frow" style="margin:0">
+          <label>Depósito mensual al fondo (USD)</label>
+          <input type="number" id="pa-deposito" placeholder="0" step="50">
+        </div>
+        <div class="frow" style="margin:0">
+          <label>Horizonte (meses)</label>
+          <input type="number" id="pa-meses" value="18" min="1" max="60" step="1">
+        </div>
+      </div>
+
+      <!-- Resumen de gastos comprometidos -->
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(239,68,68,0.04)">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">Gastos comprometidos detectados</div>
+        <div id="pa-gastos-lista" style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px">
+          <span style="color:var(--text3)">Cargá los datos del Sheet para ver los gastos futuros</span>
+        </div>
+      </div>
+
+      <!-- Métricas -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)">
+        <div style="padding:14px 18px;border-right:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Saldo hoy</div>
+          <div id="pa-stat-hoy" style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--text)">$—</div>
+        </div>
+        <div style="padding:14px 18px;border-right:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Saldo final proyectado</div>
+          <div id="pa-stat-fin" style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--green)">$—</div>
+        </div>
+        <div style="padding:14px 18px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Total gastos comprometidos</div>
+          <div id="pa-stat-gastos" style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--red)">$—</div>
+        </div>
+      </div>
+
+      <!-- Gráfico: saldo mes a mes -->
+      <div style="padding:20px;height:320px;position:relative">
+        <canvas id="chartAhorroProyeccion"></canvas>
+      </div>
+    </div>
+  </div><!-- /page-ahorros -->
 
   <!-- ── DATOS ────────────────────────────────── -->
   <div class="page" id="page-datos">
@@ -907,144 +963,87 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
   <!-- ── PROYECCIONES ──────────────────────────────── -->
   <div class="page" id="page-proyecciones">
 
-    <!-- INPUTS -->
-    <div class="card mb24" style="padding:28px">
-      <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--text);margin-bottom:4px">Proyección financiera</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:24px">Dos proyecciones independientes: tu <strong style="color:var(--blue4)">cartera de inversión</strong> (largo plazo) y tu <strong style="color:var(--green)">fondo de ahorros</strong> (gastos de vida)</div>
+    <div class="card mb24" style="padding:28px;max-width:640px">
+      <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--text);margin-bottom:4px">Proyección · Cartera de inversión</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:24px">¿Cuánto va a valer tu cartera en el futuro?</div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-
-        <!-- COLUMNA IZQUIERDA: INVERSIÓN -->
-        <div style="background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:18px">
-          <div style="font-size:12px;font-weight:600;color:var(--blue4);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">📈 Cartera de inversión</div>
-          <div class="frow">
-            <label>Valor actual de la cartera (USD)</label>
-            <input type="number" id="proy-base" placeholder="0" step="100" oninput="calcProy()">
-            <div class="hint">Se carga automáticamente del dashboard</div>
-          </div>
-          <div class="frow">
-            <label>Aporte mensual a inversión (USD)</label>
-            <input type="number" id="proy-aporte-inv" placeholder="0" step="50" oninput="calcProy()">
-          </div>
-          <div class="frow">
-            <label>Rendimiento anual esperado (%)</label>
-            <input type="number" id="proy-tasa" value="15" min="0" max="200" step="1" oninput="calcProy()">
-            <div class="hint">S&amp;P500 histórico ≈ 10%</div>
-          </div>
-          <div class="frow">
-            <label>Horizonte (años)</label>
-            <input type="number" id="proy-anos" value="5" min="1" max="30" step="1" oninput="calcProy()">
-          </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="frow">
+          <label>Monto actual de la cartera (USD)</label>
+          <input type="number" id="pi-base" placeholder="0" step="100">
+          <div class="hint">Se carga del dashboard automáticamente</div>
         </div>
-
-        <!-- COLUMNA DERECHA: AHORROS -->
-        <div style="background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:18px">
-          <div style="font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">💰 Fondo de ahorros (vida)</div>
-          <div class="frow">
-            <label>Base de ahorros actual (USD)</label>
-            <input type="number" id="proy-base-ahorro" placeholder="0" step="100" oninput="calcProy()">
-            <div class="hint">Lo que tenés ahorrado hoy para gastos</div>
-          </div>
-          <div class="frow">
-            <label>Depósito mensual al fondo (USD)</label>
-            <input type="number" id="proy-deposito-mes" placeholder="0" step="50" oninput="calcProy()">
-          </div>
-          <div class="frow">
-            <label>Gastos comprometidos</label>
-            <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
-              <div style="flex:1;font-size:13px;color:var(--text2)" id="proy-gastos-comprometidos-label">Sin gastos cargados</div>
-              <button onclick="cargarGastosComprometidos()" style="white-space:nowrap;padding:8px 12px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:8px;color:var(--green);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif">
-                📊 Cargar de Ahorros
-              </button>
-            </div>
-            <div class="hint">Se traen de los gastos futuros en tu hoja Ahorros</div>
-          </div>
-          <div id="proy-gastos-lista" style="margin-top:8px;display:none">
-            <div style="max-height:120px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;font-size:12px" id="proy-gastos-items"></div>
-          </div>
+        <div class="frow">
+          <label>Aporte mensual a inversión (USD)</label>
+          <input type="number" id="pi-aporte" placeholder="0" step="50">
         </div>
-
+        <div class="frow">
+          <label>Rendimiento anual esperado (%)</label>
+          <input type="number" id="pi-tasa" value="15" min="0" max="200" step="1">
+          <div class="hint">S&amp;P500 histórico ≈ 10%</div>
+        </div>
+        <div class="frow">
+          <label>Horizonte (años)</label>
+          <input type="number" id="pi-anos" value="5" min="1" max="30" step="1">
+        </div>
       </div>
+
+      <button onclick="calcInversion()" style="width:100%;padding:13px;background:var(--blue);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .2s" onmouseover="this.style.background='#1e5ce8'" onmouseout="this.style.background='var(--blue)'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        Calcular proyección
+      </button>
     </div>
 
-    <!-- MÉTRICAS -->
-    <div id="proy-stats-grid" class="stats-grid mb24" style="display:none"></div>
+    <!-- Resultados -->
+    <div id="pi-resultados" style="display:none">
 
-    <!-- GRÁFICO 1: CARTERA DE INVERSIÓN -->
-    <div class="card mb24" id="proy-chart1-card" style="display:none">
-      <div class="card-header">
-        <div>
-          <span class="card-title">Proyección · Cartera de inversión</span>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px" id="proy-chart1-sub"></div>
+      <!-- Métricas -->
+      <div class="stats-grid mb24" id="pi-stats"></div>
+
+      <!-- Gráfico -->
+      <div class="card mb24">
+        <div class="card-header">
+          <span class="card-title">Evolución de la cartera</span>
+          <span class="pill pill-blue" id="pi-pill"></span>
         </div>
-        <span class="pill pill-blue" id="proy-tasa-pill"></span>
+        <!-- Valores clave arriba del gráfico -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)">
+          <div style="padding:14px 20px;border-right:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Hoy</div>
+            <div id="pi-hoy" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--text)">$—</div>
+          </div>
+          <div style="padding:14px 20px;border-right:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Valor final</div>
+            <div id="pi-fin" style="font-family:'DM Serif Display',serif;font-size:24px;color:var(--gold2)">$—</div>
+          </div>
+          <div style="padding:14px 20px">
+            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Ganado por interés compuesto</div>
+            <div id="pi-rend" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--green)">$—</div>
+          </div>
+        </div>
+        <div style="padding:20px;height:300px;position:relative">
+          <canvas id="chartInversion"></canvas>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)">
-        <div style="padding:14px 20px;border-right:1px solid var(--border)">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Cartera hoy</div>
-          <div id="proy-val-hoy" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--text)">$—</div>
+
+      <!-- Tabla -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Detalle año a año</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Año</th>
+              <th class="r">Cartera inicio</th>
+              <th class="r">Aportado en el año</th>
+              <th class="r">Rendimiento generado</th>
+              <th class="r">Cartera a fin de año</th>
+              <th class="r">Multiplicador</th>
+            </tr></thead>
+            <tbody id="pi-tabla"></tbody>
+          </table>
         </div>
-        <div style="padding:14px 20px;border-right:1px solid var(--border)">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Cartera final</div>
-          <div id="proy-val-fin" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--gold2)">$—</div>
-        </div>
-        <div style="padding:14px 20px">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Ganado por interés compuesto</div>
-          <div id="proy-val-rend" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--green)">$—</div>
-        </div>
-      </div>
-      <div style="padding:20px;height:300px;position:relative">
-        <canvas id="chartProyCartera"></canvas>
       </div>
     </div>
-
-    <!-- GRÁFICO 2: FONDO DE AHORROS -->
-    <div class="card mb24" id="proy-chart2-card" style="display:none">
-      <div class="card-header">
-        <div>
-          <span class="card-title">Proyección · Fondo de ahorros (ropa, viajes, auto…)</span>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">Cada columna muestra el saldo total del fondo. Las caídas son los gastos comprometidos.</div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)">
-        <div style="padding:14px 20px;border-right:1px solid var(--border)">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Base hoy</div>
-          <div id="proy-ah-hoy" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--text)">$—</div>
-        </div>
-        <div style="padding:14px 20px;border-right:1px solid var(--border)">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Saldo proyectado final</div>
-          <div id="proy-ah-fin" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--green)">$—</div>
-        </div>
-        <div style="padding:14px 20px">
-          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Total gastado comprometido</div>
-          <div id="proy-ah-gastos" style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--red)">$—</div>
-        </div>
-      </div>
-      <div style="padding:20px;height:340px;position:relative">
-        <canvas id="chartProyAhorro"></canvas>
-      </div>
-      <!-- Leyenda de gastos -->
-      <div id="proy-gastos-leyenda" style="padding:12px 20px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--text3)"></div>
-    </div>
-
-    <!-- TABLA -->
-    <div class="card" id="proy-tabla-card" style="display:none">
-      <div class="card-header"><span class="card-title">Detalle mes a mes · Fondo de ahorros</span></div>
-      <div class="table-wrap" style="max-height:360px;overflow-y:auto">
-        <table>
-          <thead><tr>
-            <th>Período</th>
-            <th class="r">Saldo inicio</th>
-            <th class="r">Depósito</th>
-            <th class="r">Gastos del mes</th>
-            <th class="r">Saldo fin</th>
-            <th>Gasto comprometido</th>
-          </tr></thead>
-          <tbody id="proy-tabla-body"></tbody>
-        </table>
-      </div>
-    </div>
-
   </div>
 
 </div><!-- /main -->
@@ -1374,7 +1373,7 @@ function goTo(page) {
   });
   closeSidebar();
   closeDetail();
-  if (page==='ahorros') renderAhorros();
+  if (page==='ahorros') { renderAhorros(); setTimeout(initAhorroProyeccion, 100); }
   if (page==='proyecciones') initProyeccion();
   if (page==='datos')   renderDatos();
   if (page==='noticias') loadNoticias();
@@ -2791,188 +2790,90 @@ function loadCachedAhorros() {
 
 
 // ═══════════════════════════════════════════════════
-//  PROYECCIONES
+//  PROYECCIONES · CARTERA DE INVERSIÓN
 // ═══════════════════════════════════════════════════
 
-// Gastos comprometidos cargados de la hoja Ahorros
-let GASTOS_COMPROMETIDOS = []; // [{fecha, desc, monto, cat}]
-
 function initProyeccion() {
-  // Pre-cargar valor actual de la cartera
   const val = getPortfolioValue();
-  const elBase = document.getElementById('proy-base');
-  if (val > 0 && elBase && !elBase.value) elBase.value = Math.round(val);
-  // Intentar cargar gastos comprometidos automáticamente si hay datos
-  if (AHORROS && AHORROS.length) cargarGastosComprometidos(true);
-  calcProy();
+  const el = document.getElementById('pi-base');
+  if (val > 0 && el && !el.value) el.value = Math.round(val);
 }
 
-function cargarGastosComprometidos(silent = false) {
-  const futuros = (AHORROS || []).filter(a => a.tipo === 'GASTO_FUTURO');
-  if (!futuros.length) {
-    if (!silent) toast('Sin gastos futuros en la hoja Ahorros — agregalos en la pestaña Ahorros', true);
-    return;
-  }
-  GASTOS_COMPROMETIDOS = futuros.map(a => ({
-    fecha: a.fecha,
-    desc:  a.desc || a.cat || 'Gasto',
-    cat:   a.cat,
-    monto: a.moneda === 'ARS' ? a.monto / 1200 : a.monto, // convertir ARS estimado
-    moneda: a.moneda,
-  })).sort((a, b) => (parseDateDMY(a.fecha) || 0) - (parseDateDMY(b.fecha) || 0));
+function calcInversion() {
+  const base   = parseFloat(document.getElementById('pi-base').value)   || 0;
+  const aporte = parseFloat(document.getElementById('pi-aporte').value) || 0;
+  const tasa   = (parseFloat(document.getElementById('pi-tasa').value)  || 15) / 100;
+  const anos   = parseInt(document.getElementById('pi-anos').value)      || 5;
 
-  // Mostrar lista
-  const total = GASTOS_COMPROMETIDOS.reduce((s, g) => s + g.monto, 0);
-  document.getElementById('proy-gastos-comprometidos-label').textContent =
-    `${GASTOS_COMPROMETIDOS.length} gastos · total ${fmt(total, 0)}`;
-  document.getElementById('proy-gastos-lista').style.display = 'block';
-  document.getElementById('proy-gastos-items').innerHTML = GASTOS_COMPROMETIDOS.map(g => `
-    <div style="display:flex;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border)">
-      <span style="color:var(--text2)">${g.fecha} · ${g.desc}</span>
-      <span style="color:var(--red);font-weight:500">${fmt(g.monto, 0)}</span>
-    </div>`).join('');
+  if (!base && !aporte) { toast('⚠ Ingresá al menos el monto actual o el aporte mensual', true); return; }
 
-  if (!silent) toast(`✓ ${GASTOS_COMPROMETIDOS.length} gastos comprometidos cargados`);
-  calcProy();
-}
-
-function calcProy() {
-  // Simplemente trigger runProyeccion con debounce visual
-  const base = parseFloat(document.getElementById('proy-base')?.value) || getPortfolioValue() || 0;
-  const baseAh = parseFloat(document.getElementById('proy-base-ahorro')?.value) || 0;
-  if (!base && !baseAh) return;
-  runProyeccion();
-}
-
-function runProyeccion() {
-  // ── Parámetros INVERSIÓN ─────────────────────────────────────────────
-  const base       = parseFloat(document.getElementById('proy-base').value) || getPortfolioValue() || 0;
-  const aporteInv  = parseFloat(document.getElementById('proy-aporte-inv').value) || 0;
-  const tasa       = (parseFloat(document.getElementById('proy-tasa').value) || 15) / 100;
-  const anos       = parseInt(document.getElementById('proy-anos').value) || 5;
-
-  // ── Parámetros AHORRO ────────────────────────────────────────────────
-  const baseAhorro    = parseFloat(document.getElementById('proy-base-ahorro').value) || 0;
-  const depositoMes   = parseFloat(document.getElementById('proy-deposito-mes').value) || 0;
-  const tasaMes       = tasa / 12;
-  const now           = new Date();
-  const mesesTotal    = anos * 12;
-
-  // ── SIMULACIÓN INVERSIÓN (anual) ─────────────────────────────────────
+  const tasaMes = tasa / 12;
   let cartera = base;
-  const snapAnual = [];
+  const snap = [];
+
   for (let a = 1; a <= anos; a++) {
-    const cartInicio = cartera;
-    let rendAno = 0;
+    const inicio = cartera;
+    let rend = 0;
     for (let m = 0; m < 12; m++) {
-      cartera += aporteInv;
-      const rend = cartera * tasaMes;
-      cartera  += rend;
-      rendAno  += rend;
+      cartera += aporte;
+      const r = cartera * tasaMes;
+      cartera += r;
+      rend += r;
     }
-    snapAnual.push({ ano: a, cartInicio, aportado: aporteInv * 12, rend: rendAno, cartFin: cartera });
-  }
-  const finalInv = snapAnual[snapAnual.length - 1];
-  const totalAportadoInv = aporteInv * 12 * anos;
-  const rendTotal = finalInv.cartFin - base - totalAportadoInv;
-
-  // ── SIMULACIÓN AHORRO MES A MES ──────────────────────────────────────
-  // Mapear gastos comprometidos a meses relativos
-  const gastosEnMes = {}; // mesIndex (0-based) -> [{desc, monto}]
-  for (const g of GASTOS_COMPROMETIDOS) {
-    const d = parseDateDMY(g.fecha);
-    if (!d) continue;
-    // Calcular cuántos meses desde hoy
-    const diffMs = d - now;
-    const diffMes = Math.round(diffMs / (1000 * 60 * 60 * 24 * 30.44));
-    if (diffMes >= 0 && diffMes < mesesTotal) {
-      if (!gastosEnMes[diffMes]) gastosEnMes[diffMes] = [];
-      gastosEnMes[diffMes].push({ desc: g.desc, monto: g.monto, cat: g.cat });
-    }
+    snap.push({ a, inicio, aporte: aporte*12, rend, fin: cartera });
   }
 
-  let saldo = baseAhorro;
-  const snapMes = [];
-  let totalGastado = 0;
+  const final = snap[snap.length - 1];
+  const totalAportado = aporte * 12 * anos;
+  const rendTotal = Math.max(0, final.fin - base - totalAportado);
 
-  for (let m = 0; m < mesesTotal; m++) {
-    const inicio = saldo;
-    saldo += depositoMes; // depósito del mes
+  // Mostrar
+  document.getElementById('pi-resultados').style.display = '';
 
-    const gastosDelMes = gastosEnMes[m] || [];
-    const montoGastos  = gastosDelMes.reduce((s, g) => s + g.monto, 0);
-    saldo -= montoGastos;
-    totalGastado += montoGastos;
+  // Stats
+  document.getElementById('pi-stats').innerHTML = [
+    { label:'Cartera final',                val:fmt(final.fin,0),      sub:`en ${anos} años`,              cls:'gold'  },
+    { label:'Interés compuesto generado',   val:fmt(rendTotal,0),      sub:'el dinero trabajando solo',     cls:'green' },
+    { label:'Total aportado',               val:fmt(totalAportado,0),  sub:`${fmt(aporte,0)}/mes × ${anos*12} meses`, cls:'' },
+    { label:'Multiplicador',                val:`${(final.fin/Math.max(base,1)).toFixed(1)}x`, sub:'vs. hoy', cls:'' },
+  ].map(s=>`<div class="stat-card ${s.cls}"><div class="stat-label">${s.label}</div><div class="stat-value">${s.val}</div><div class="stat-sub">${s.sub}</div></div>`).join('');
 
-    const mesAbs  = now.getMonth() + m;
-    const label   = new Date(now.getFullYear() + Math.floor(mesAbs / 12), mesAbs % 12, 1)
-                    .toLocaleDateString('es-AR', { month: 'short', year: '2-digit' });
+  // Pill y labels
+  document.getElementById('pi-pill').textContent  = `${(tasa*100).toFixed(0)}% anual · ${fmt(aporte,0)}/mes`;
+  document.getElementById('pi-hoy').textContent   = fmt(base, 0);
+  document.getElementById('pi-fin').textContent   = fmt(final.fin, 0);
+  document.getElementById('pi-rend').textContent  = fmt(rendTotal, 0);
 
-    snapMes.push({
-      m, label, inicio, deposito: depositoMes,
-      gastos: montoGastos, saldo,
-      gastosDetalle: gastosDelMes,
-      hayGasto: montoGastos > 0,
-    });
-  }
-
-  const finalSaldo = snapMes.length ? snapMes[snapMes.length - 1].saldo : baseAhorro;
-
-  // ── Mostrar secciones ────────────────────────────────────────────────
-  ['proy-stats-grid','proy-chart1-card','proy-chart2-card','proy-tabla-card'].forEach(id => {
-    document.getElementById(id).style.display = '';
-  });
-
-  // ── Stats ────────────────────────────────────────────────────────────
-  document.getElementById('proy-stats-grid').innerHTML = [
-    { label: 'Cartera de inversión final', val: fmt(finalInv.cartFin, 0), sub: `en ${anos} años a ${(tasa*100).toFixed(0)}% anual`, cls: 'gold' },
-    { label: 'Rendimiento por interés compuesto', val: fmt(Math.max(0, rendTotal), 0), sub: 'sin contar aportes', cls: 'green' },
-    { label: 'Saldo fondo de ahorros', val: fmt(finalSaldo, 0), sub: `después de ${GASTOS_COMPROMETIDOS.length} gastos comprometidos`, cls: finalSaldo >= 0 ? '' : 'red' },
-    { label: 'Total gastado comprometido', val: fmt(totalGastado, 0), sub: `${GASTOS_COMPROMETIDOS.filter(g => { const d=parseDateDMY(g.fecha); return d && d-now>=0 && (d-now)/(1000*60*60*24*30.44)<mesesTotal; }).length} eventos`, cls: '' },
-  ].map(s => `
-    <div class="stat-card ${s.cls}">
-      <div class="stat-label">${s.label}</div>
-      <div class="stat-value">${s.val}</div>
-      <div class="stat-sub">${s.sub}</div>
-    </div>`).join('');
-
-  // ── Gráfico 1: Cartera inversión (barras apiladas) ───────────────────
-  dc('chartProyCartera');
-  document.getElementById('proy-chart1-sub').textContent =
-    `Cartera actual ${fmt(base,0)} + ${fmt(aporteInv,0)}/mes aportado`;
-  document.getElementById('proy-tasa-pill').textContent = `${(tasa*100).toFixed(0)}% anual`;
-  document.getElementById('proy-val-hoy').textContent = fmt(base, 0);
-  document.getElementById('proy-val-fin').textContent  = fmt(finalInv.cartFin, 0);
-  document.getElementById('proy-val-rend').textContent = fmt(Math.max(0, rendTotal), 0);
-
-  const labAnual = ['Hoy', ...snapAnual.map(r => `Año ${r.ano}`)];
-  charts.chartProyCartera = new Chart(document.getElementById('chartProyCartera'), {
+  // Gráfico barras apiladas + línea
+  dc('chartInversion');
+  const labels = ['Hoy', ...snap.map(r=>`Año ${r.a}`)];
+  charts.chartInversion = new Chart(document.getElementById('chartInversion'), {
     type: 'bar',
     data: {
-      labels: labAnual,
+      labels,
       datasets: [
         {
           label: 'Capital inicial',
-          data: labAnual.map(() => base),
-          backgroundColor: 'rgba(139,155,191,0.35)',
+          data: labels.map(() => base),
+          backgroundColor: 'rgba(139,155,191,0.3)',
           stack: 's',
         },
         {
           label: 'Aportes acumulados',
-          data: [0, ...snapAnual.map(r => Math.round(r.ano * aporteInv * 12))],
+          data: [0, ...snap.map(r => Math.round(r.a * aporte * 12))],
           backgroundColor: 'rgba(59,130,246,0.65)',
           stack: 's',
         },
         {
           label: 'Rendimiento (interés compuesto)',
-          data: [0, ...snapAnual.map(r => Math.round(Math.max(0, r.cartFin - base - r.ano * aporteInv * 12)))],
+          data: [0, ...snap.map(r => Math.round(Math.max(0, r.fin - base - r.a * aporte * 12)))],
           backgroundColor: 'rgba(16,185,129,0.8)',
           stack: 's',
           borderRadius: { topLeft: 5, topRight: 5 },
         },
         {
-          label: 'Valor total cartera',
-          data: [base, ...snapAnual.map(r => Math.round(r.cartFin))],
+          label: 'Valor total',
+          data: [base, ...snap.map(r => Math.round(r.fin))],
           type: 'line',
           borderColor: '#f0c040',
           pointBackgroundColor: '#f0c040',
@@ -2980,7 +2881,7 @@ function runProyeccion() {
           borderWidth: 2.5,
           pointRadius: 5,
           pointHoverRadius: 8,
-          tension: 0.35,
+          tension: 0.3,
           order: 0,
         },
       ]
@@ -2993,73 +2894,132 @@ function runProyeccion() {
         tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y, 0)}` } }
       },
       scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 12 } } },
+        x: { grid: { display: false }, stacked: true, ticks: { font: { size: 12 } } },
         y: {
           stacked: true,
           grid: { color: 'rgba(255,255,255,0.05)' },
-          ticks: { callback: v => '$' + (v>=1000 ? Math.round(v/1000)+'k' : v), font: { size: 11 } }
+          ticks: { callback: v => '$'+(v>=1000?Math.round(v/1000)+'k':v), font: { size: 11 } }
         }
       }
     }
   });
 
-  // ── Gráfico 2: Fondo de ahorros mes a mes ───────────────────────────
-  dc('chartProyAhorro');
-  document.getElementById('proy-ah-hoy').textContent    = fmt(baseAhorro, 0);
-  document.getElementById('proy-ah-fin').textContent    = fmt(finalSaldo, 0);
-  document.getElementById('proy-ah-gastos').textContent = fmt(totalGastado, 0);
+  // Tabla
+  document.getElementById('pi-tabla').innerHTML = snap.map(r => `
+    <tr>
+      <td><strong>Año ${r.a}</strong></td>
+      <td class="r">${fmt(r.inicio,0)}</td>
+      <td class="r pos">+${fmt(r.aporte,0)}</td>
+      <td class="r" style="color:var(--blue4)">+${fmt(r.rend,0)}</td>
+      <td class="r"><strong style="color:var(--gold2)">${fmt(r.fin,0)}</strong></td>
+      <td class="r"><span class="badge bp">${(r.fin/Math.max(base,1)).toFixed(1)}x</span></td>
+    </tr>`).join('');
 
-  // Colores: azul normal, rojo en meses con gasto comprometido grande
-  const barColors = snapMes.map(m =>
-    m.hayGasto
-      ? 'rgba(239,68,68,0.85)'
-      : m.saldo < baseAhorro * 0.3
-        ? 'rgba(249,115,22,0.75)'
-        : 'rgba(16,185,129,0.72)'
-  );
+  document.getElementById('pi-resultados').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
-  charts.chartProyAhorro = new Chart(document.getElementById('chartProyAhorro'), {
+// ═══════════════════════════════════════════════════
+//  PROYECCIÓN DE AHORROS (en pestaña Ahorros)
+// ═══════════════════════════════════════════════════
+
+function calcAhorroProyeccion() {
+  const baseAh   = parseFloat(document.getElementById('pa-base').value)     || 0;
+  const deposito = parseFloat(document.getElementById('pa-deposito').value) || 0;
+  const meses    = parseInt(document.getElementById('pa-meses').value)       || 18;
+  const now      = new Date();
+
+  // Traer gastos comprometidos de AHORROS
+  const futuros = (AHORROS || []).filter(a => a.tipo === 'GASTO_FUTURO');
+
+  // Actualizar lista de gastos comprometidos
+  const paLista = document.getElementById('pa-gastos-lista');
+  if (futuros.length) {
+    const total = futuros.reduce((s,g) => s + (g.moneda==='ARS'?g.monto/1200:g.monto), 0);
+    paLista.innerHTML = futuros.map(g => {
+      const monto = g.moneda==='ARS' ? g.monto/1200 : g.monto;
+      return `<span style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);padding:3px 10px;border-radius:20px;color:#f87171;white-space:nowrap">
+        📅 ${g.fecha} · ${g.desc||g.cat} · ${fmt(monto,0)}
+      </span>`;
+    }).join('') + `<span style="color:var(--text3);align-self:center">Total: ${fmt(total,0)}</span>`;
+  } else {
+    paLista.innerHTML = '<span style="color:var(--text3)">Sin gastos futuros — agregalos en la sección de arriba</span>';
+  }
+
+  // Mapear gastos a mes relativo
+  const gastosEnMes = {};
+  for (const g of futuros) {
+    const d = parseDateDMY(g.fecha);
+    if (!d) continue;
+    const diffMes = Math.round((d - now) / (1000 * 60 * 60 * 24 * 30.44));
+    if (diffMes >= 0 && diffMes < meses) {
+      if (!gastosEnMes[diffMes]) gastosEnMes[diffMes] = [];
+      const monto = g.moneda==='ARS' ? g.monto/1200 : g.monto;
+      gastosEnMes[diffMes].push({ desc: g.desc||g.cat, monto });
+    }
+  }
+
+  // Simulación mes a mes
+  let saldo = baseAh;
+  const labels = [], saldos = [], colores = [], tooltipGastos = [];
+  let totalGastado = 0;
+
+  for (let m = 0; m < meses; m++) {
+    saldo += deposito;
+    const gastosDelMes = gastosEnMes[m] || [];
+    const montoGastos  = gastosDelMes.reduce((s,g) => s+g.monto, 0);
+    saldo -= montoGastos;
+    totalGastado += montoGastos;
+
+    const mesAbs = now.getMonth() + m;
+    const label  = new Date(now.getFullYear() + Math.floor(mesAbs/12), mesAbs%12, 1)
+                   .toLocaleDateString('es-AR', { month:'short', year:'2-digit' });
+    labels.push(label);
+    saldos.push(Math.round(saldo));
+    tooltipGastos.push(gastosDelMes);
+
+    // Color: rojo si hay gasto comprometido, naranja si saldo bajo, verde normal
+    colores.push(
+      montoGastos > 0        ? 'rgba(239,68,68,0.85)'  :
+      saldo < baseAh * 0.25  ? 'rgba(249,115,22,0.75)' :
+                               'rgba(16,185,129,0.72)'
+    );
+  }
+
+  const finalSaldo = saldos[saldos.length - 1] || 0;
+
+  // Stats
+  document.getElementById('pa-stat-hoy').textContent    = fmt(baseAh, 0);
+  document.getElementById('pa-stat-fin').textContent    = fmt(finalSaldo, 0);
+  document.getElementById('pa-stat-fin').style.color    = finalSaldo >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('pa-stat-gastos').textContent = fmt(totalGastado, 0);
+
+  // Gráfico: solo columnas de saldo, sin línea acumulada
+  dc('chartAhorroProyeccion');
+  charts.chartAhorroProyeccion = new Chart(document.getElementById('chartAhorroProyeccion'), {
     type: 'bar',
     data: {
-      labels: snapMes.map(m => m.label),
-      datasets: [
-        {
-          label: 'Saldo del fondo',
-          data: snapMes.map(m => Math.round(m.saldo)),
-          backgroundColor: barColors,
-          borderColor: barColors.map(c => c.replace('0.85','1').replace('0.75','1').replace('0.72','1')),
-          borderWidth: 1,
-          borderRadius: 3,
-          order: 1,
-        },
-        {
-          label: 'Depósito mensual acumulado',
-          data: snapMes.map((_, i) => Math.round(baseAhorro + depositoMes * (i + 1))),
-          type: 'line',
-          borderColor: 'rgba(59,130,246,0.6)',
-          backgroundColor: 'transparent',
-          borderDash: [5, 4],
-          borderWidth: 1.5,
-          pointRadius: 0,
-          tension: 0,
-          order: 0,
-        },
-      ]
+      labels,
+      datasets: [{
+        label: 'Saldo del fondo de ahorros',
+        data: saldos,
+        backgroundColor: colores,
+        borderColor: colores.map(c => c.replace('0.85','1').replace('0.75','1').replace('0.72','1')),
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'top', labels: { font: { size: 12 }, padding: 14, boxWidth: 13 } },
+        legend: { display: false },
         tooltip: {
           callbacks: {
-            label: c => ` ${c.dataset.label}: ${fmt(c.parsed.y, 0)}`,
+            title: (items) => labels[items[0].dataIndex],
+            label: (c) => ` Saldo: ${fmt(c.parsed.y, 0)}`,
             afterBody: (items) => {
-              const m = snapMes[items[0]?.dataIndex];
-              if (m?.hayGasto) {
-                return ['', '💸 Gastos comprometidos:', ...m.gastosDetalle.map(g => `  • ${g.desc}: ${fmt(g.monto,0)}`)];
-              }
-              return [];
+              const gs = tooltipGastos[items[0].dataIndex];
+              if (!gs || !gs.length) return [];
+              return ['', '💸 Gastos comprometidos:', ...gs.map(g => `  · ${g.desc}: ${fmt(g.monto,0)}`)];
             }
           }
         }
@@ -3067,44 +3027,27 @@ function runProyeccion() {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 24 }
+          ticks: { font: { size: 11 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 18 }
         },
         y: {
           grid: { color: 'rgba(255,255,255,0.05)' },
-          ticks: { callback: v => '$' + (v>=1000 ? Math.round(v/1000)+'k' : v), font: { size: 11 } }
+          ticks: { callback: v => '$'+(Math.abs(v)>=1000?(v/1000).toFixed(0)+'k':v), font: { size: 11 } }
         }
       }
     }
   });
+}
 
-  // Leyenda de gastos comprometidos en el período
-  const gastosEnPeriodo = GASTOS_COMPROMETIDOS.filter(g => {
-    const d = parseDateDMY(g.fecha);
-    if (!d) return false;
-    const diff = (d - now) / (1000 * 60 * 60 * 24 * 30.44);
-    return diff >= 0 && diff < mesesTotal;
-  });
-  document.getElementById('proy-gastos-leyenda').innerHTML = gastosEnPeriodo.length
-    ? gastosEnPeriodo.map(g =>
-        `<span style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);padding:3px 10px;border-radius:20px;color:#f87171">
-          📅 ${g.fecha} · ${g.desc} · ${fmt(g.monto,0)}
-        </span>`).join('')
-    : '<span style="color:var(--text3)">Sin gastos comprometidos en este horizonte</span>';
-
-  // ── Tabla mes a mes ──────────────────────────────────────────────────
-  document.getElementById('proy-tabla-body').innerHTML = snapMes.map(m => `
-    <tr style="${m.hayGasto ? 'background:rgba(239,68,68,0.06)' : ''}">
-      <td style="white-space:nowrap;color:var(--text3);font-size:12px">${m.label}</td>
-      <td class="r">${fmt(m.inicio, 0)}</td>
-      <td class="r pos">+${fmt(m.deposito, 0)}</td>
-      <td class="r ${m.gastos > 0 ? 'neg' : ''}">${m.gastos > 0 ? '-' + fmt(m.gastos, 0) : '—'}</td>
-      <td class="r" style="font-weight:${m.hayGasto?'600':'400'};color:${m.saldo < 0 ? 'var(--red)' : m.hayGasto ? 'var(--gold2)' : 'var(--text2)'}">
-        ${fmt(m.saldo, 0)}
-      </td>
-      <td style="font-size:11px;color:var(--text3)">
-        ${m.gastosDetalle.map(g => `${g.desc} (${fmt(g.monto,0)})`).join(' + ') || ''}
-      </td>
-    </tr>`).join('');
+// Inicializar proyección de ahorros automáticamente cuando se entra a Ahorros
+function initAhorroProyeccion() {
+  // Pre-cargar saldo de ahorros del resumen si hay datos
+  const saldoEl = document.getElementById('ah-saldo');
+  const paBase  = document.getElementById('pa-base');
+  if (saldoEl && paBase && !paBase.value) {
+    const saldoNum = parseFloat(saldoEl.textContent.replace(/[$.,]/g,'').replace(',','.'))||0;
+    if (saldoNum > 0) paBase.value = Math.round(saldoNum);
+  }
+  calcAhorroProyeccion();
 }
 
 
