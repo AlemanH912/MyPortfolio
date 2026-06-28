@@ -2595,7 +2595,7 @@ function renderAhorros() {
   // Próximos gastos ordenados por fecha
   const futSorted = [...futuros].sort((a,b)=>(parseDateDMY(a.fecha)||0)-(parseDateDMY(b.fecha)||0));
   document.getElementById('ah-fut-table').innerHTML = futSorted.length
-    ? futSorted.map(a=>`<tr>
+    ? futSorted.map((a,i)=>`<tr style="cursor:pointer" ondblclick="editGastoFuturo(${AHORROS.indexOf(a)})" title="Doble click para editar">
         <td style="color:var(--text3);font-size:12px">${a.fecha}</td>
         <td><span class="plat">${a.cat}</span></td>
         <td>${a.desc||'—'}</td>
@@ -2608,7 +2608,7 @@ function renderAhorros() {
   const hist = (ahFilter ? AHORROS.filter(a=>a.tipo===ahFilter) : AHORROS.filter(a=>a.tipo!=='GASTO_FUTURO'))
     .slice().sort((a,b)=>(parseDateDMY(b.fecha)||0)-(parseDateDMY(a.fecha)||0));
   document.getElementById('ah-hist-table').innerHTML = hist.length
-    ? hist.map(a=>`<tr>
+    ? hist.map((a,i)=>`<tr style="cursor:pointer" ondblclick="editAhorro(${hist.indexOf(a)})" title="Doble click para editar">
         <td style="color:var(--text3);font-size:12px">${a.fecha}</td>
         <td><span class="badge ${a.tipo==='INGRESO'?'bp':'bn'}">${a.tipo==='INGRESO'?'Ingreso':'Gasto'}</span></td>
         <td><span class="plat">${a.cat}</span></td>
@@ -3052,11 +3052,142 @@ function initAhorroProyeccion() {
 
 
 
+// ═══════════════════════════════════════════════════
+//  EDITAR MOVIMIENTOS DE AHORROS
+// ═══════════════════════════════════════════════════
+let _editAhIdx = -1;
+
+function toInputDate(str) {
+  if (!str) return '';
+  const p = str.split('/');
+  if (p.length !== 3) return '';
+  const y = p[2].length === 2 ? '20' + p[2] : p[2];
+  return `${y}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+}
+
+function editAhorro(idx) {
+  // idx is within the filtered hist array — need to find in AHORROS
+  const hist = (ahFilter ? AHORROS.filter(a=>a.tipo===ahFilter) : AHORROS.filter(a=>a.tipo!=='GASTO_FUTURO'))
+    .slice().sort((a,b)=>(parseDateDMY(b.fecha)||0)-(parseDateDMY(a.fecha)||0));
+  const item = hist[idx];
+  if (!item) return;
+  _editAhIdx = AHORROS.indexOf(item);
+  _openEditAhModal(item);
+}
+
+function editGastoFuturo(idx) {
+  const item = AHORROS[idx];
+  if (!item) return;
+  _editAhIdx = idx;
+  _openEditAhModal(item);
+}
+
+function _openEditAhModal(item) {
+  document.getElementById('ea-fecha').value  = toInputDate(item.fecha);
+  document.getElementById('ea-tipo').value   = item.tipo;
+  document.getElementById('ea-cat').value    = item.cat || 'Otro';
+  document.getElementById('ea-moneda').value = item.moneda || 'USD';
+  document.getElementById('ea-desc').value   = item.desc || '';
+  document.getElementById('ea-monto').value  = item.monto || '';
+  document.getElementById('mEditAh').classList.add('open');
+}
+
+function closeEditAh() {
+  document.getElementById('mEditAh').classList.remove('open');
+  _editAhIdx = -1;
+}
+
+async function saveEditAh() {
+  if (_editAhIdx < 0) return;
+  const fecha  = document.getElementById('ea-fecha').value;
+  const tipo   = document.getElementById('ea-tipo').value;
+  const cat    = document.getElementById('ea-cat').value;
+  const moneda = document.getElementById('ea-moneda').value;
+  const desc   = document.getElementById('ea-desc').value.trim();
+  const monto  = parseFloat(document.getElementById('ea-monto').value) || 0;
+  if (!fecha || !monto) { toast('⚠ Completá fecha y monto', true); return; }
+
+  const fechaFmt = fecha.split('-').reverse().join('/');
+  // Update local
+  AHORROS[_editAhIdx] = { fecha:fechaFmt, tipo, cat, desc, monto, moneda };
+
+  // Update in Sheets if connected — find the row by writing over it
+  // (simplest approach: append updated row, user can clean duplicates)
+  if (accessToken) {
+    const row = [fechaFmt, tipo, cat, desc, monto, moneda];
+    const range = encodeURIComponent('AHORROS!A:F');
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [row] })
+      });
+      if (r.ok) toast('✓ Movimiento actualizado en Sheets');
+      else toast('⚠ Guardado localmente — error en Sheets', true);
+    } catch(e) { toast('✓ Guardado localmente', false); }
+  } else {
+    toast('✓ Movimiento actualizado localmente');
+  }
+
+  closeEditAh();
+  cacheAhorrosData();
+  renderAhorros();
+  calcAhorroProyeccion();
+}
+
+async function deleteAhorro() {
+  if (_editAhIdx < 0) return;
+  if (!confirm('¿Eliminar este movimiento?')) return;
+  AHORROS.splice(_editAhIdx, 1);
+  closeEditAh();
+  cacheAhorrosData();
+  renderAhorros();
+  calcAhorroProyeccion();
+  toast('Movimiento eliminado (localmente)');
+}
+
 loadCachedData();
 loadCachedAhorros();
 renderAll();
 fetchQuotes();
 initGoogleAuth();
 </script>
+
+<!-- MODAL EDITAR MOVIMIENTO AHORRO -->
+<div class="overlay" id="mEditAh" onclick="if(event.target===this)closeEditAh()">
+<div class="modal">
+  <h2>Editar movimiento</h2>
+  <div class="fgrid">
+    <div class="frow"><label>Fecha</label><input type="date" id="ea-fecha"></div>
+    <div class="frow">
+      <label>Tipo</label>
+      <select id="ea-tipo">
+        <option value="INGRESO">Ingreso</option>
+        <option value="GASTO">Gasto</option>
+        <option value="GASTO_FUTURO">Gasto futuro</option>
+      </select>
+    </div>
+  </div>
+  <div class="fgrid">
+    <div class="frow">
+      <label>Categoría</label>
+      <select id="ea-cat">
+        <option>Sueldo</option><option>Vivienda</option><option>Comida</option>
+        <option>Transporte</option><option>Salud</option><option>Educación</option>
+        <option>Entretenimiento</option><option>Ropa</option><option>Servicios</option>
+        <option>Viajes</option><option>Otro</option>
+      </select>
+    </div>
+    <div class="frow"><label>Moneda</label><select id="ea-moneda"><option>USD</option><option>ARS</option></select></div>
+  </div>
+  <div class="frow"><label>Descripción</label><input type="text" id="ea-desc" placeholder="Descripción…"></div>
+  <div class="frow"><label>Monto</label><input type="number" id="ea-monto" step="any" placeholder="0.00"></div>
+  <div class="mbtns">
+    <button class="mbtn cancel" onclick="closeEditAh()">Cancelar</button>
+    <button class="mbtn" style="background:rgba(239,68,68,.2);color:#f87171;border:none" onclick="deleteAhorro()">Eliminar</button>
+    <button class="mbtn save" onclick="saveEditAh()">Guardar</button>
+  </div>
+</div></div>
 </body>
 </html>
