@@ -645,7 +645,7 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
     <div class="stats-grid" style="grid-template-columns:1fr 1fr;margin-bottom:20px">
       <div class="card">
         <div class="card-header">
-          <span class="card-title">Mayores movedores 24h</span>
+          <span class="card-title">Mayores variaciones</span>
           <span id="movers-ts" style="font-size:10px;color:var(--text3)"></span>
         </div>
         <div class="movers-grid" id="movers-grid">
@@ -1208,6 +1208,31 @@ const PRICES = {
 // Cambio 24h en % (se actualiza con fetchQuotes)
 const PRICE_CHANGES = {};
 
+// Guarda snapshot de precios al inicio del día en localStorage para calcular variación diaria
+function saveDailyPrices() {
+  const today = new Date().toISOString().slice(0,10);
+  const stored = JSON.parse(localStorage.getItem('dailyPrices')||'{}');
+  if (stored.date !== today) {
+    // Nuevo día: guardar precios actuales como apertura
+    const snap = {};
+    Object.keys(POSITIONS).forEach(tk => { if (PRICES[tk]) snap[tk] = PRICES[tk]; });
+    localStorage.setItem('dailyPrices', JSON.stringify({date:today, prices:snap}));
+  }
+}
+
+// Calcula PRICE_CHANGES desde el snapshot diario para tickers que no tienen dato de API
+function loadPriceChangesFromDaily() {
+  const stored = JSON.parse(localStorage.getItem('dailyPrices')||'{}');
+  const today = new Date().toISOString().slice(0,10);
+  if (!stored.prices || stored.date !== today) return;
+  Object.keys(POSITIONS).forEach(tk => {
+    if (PRICE_CHANGES[tk] != null) return; // ya tiene dato de API
+    const open = stored.prices[tk];
+    const cur = PRICES[tk];
+    if (open && cur && open > 0) PRICE_CHANGES[tk] = (cur - open) / open;
+  });
+}
+
 // Operaciones cerradas (216 ops)
 const CLOSED = [
   {t:'BTC',plat:'BINANCE',bd:'13/4/2023',sd:'16/7/2025',q:0.003453,bP:30116,sP:118953,pnl:305.55,pct:2.95},
@@ -1337,7 +1362,7 @@ async function fetchQuotes() {
         });
       }
     }
-    // BYMA — precio + variación
+    // BYMA — precio + variación (calculada desde apertura si el campo directo no existe)
     try {
       const r = await fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/leading-equity',{signal:AbortSignal.timeout(8000)});
       if (r.ok) {
@@ -1348,18 +1373,30 @@ async function fetchQuotes() {
           const pr = parseFloat(it.trade||it.price||0);
           if (sym && pr && POSITIONS[sym]) {
             PRICES[sym] = pr; fetched++;
-            const chg = parseFloat(it.variation||it.changePercent||0);
-            if (chg) PRICE_CHANGES[sym] = chg / 100;
+            // Intentar campo directo de variación
+            const directChg = parseFloat(it.variation||it.changePercent||it.variationClose||0);
+            if (directChg) {
+              PRICE_CHANGES[sym] = Math.abs(directChg) > 1 ? directChg/100 : directChg;
+            } else {
+              // Calcular desde precio de apertura
+              const open = parseFloat(it.openingPrice||it.previousClose||it.open||0);
+              if (open > 0) PRICE_CHANGES[sym] = (pr - open) / open;
+            }
+            console.log('[BYMA]', sym, 'trade:', pr, '| variation fields:', {variation:it.variation, changePercent:it.changePercent, variationClose:it.variationClose, openingPrice:it.openingPrice}, '→ PRICE_CHANGES:', PRICE_CHANGES[sym]);
           }
         });
       }
     } catch(e) { console.warn('BYMA',e); }
+
+    // Respaldo: calcular variación desde precios guardados ayer
+    loadPriceChangesFromDaily();
 
     const ts = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('lastUpdate').textContent = `Actualizado: ${ts}`;
     toast(`✓ ${fetched} cotizaciones actualizadas`);
   } catch(e) { toast('⚠ Error al actualizar', true); }
   btn.classList.remove('loading');
+  saveDailyPrices();
   renderAll();
   renderMovers();
 }
