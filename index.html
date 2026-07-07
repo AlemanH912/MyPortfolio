@@ -213,6 +213,11 @@ th{
   border-bottom:1px solid var(--border);background:rgba(0,0,0,.15);
   white-space:nowrap;
 }
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--text2)}
+th.sortable::after{content:'';margin-left:5px;opacity:.3}
+th[data-sort="asc"]::after{content:'↑';opacity:1;color:var(--blue3)}
+th[data-sort="desc"]::after{content:'↓';opacity:1;color:var(--blue3)}
 td{padding:11px 16px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
@@ -721,11 +726,16 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
     <div class="card mb24">
       <div class="table-wrap">
         <table>
-          <thead><tr>
-            <th>Ticker</th><th>Plataforma</th><th class="r">Cantidad</th>
-            <th class="r">P.Prom. Compra</th><th class="r">Cot. actual</th>
-            <th class="r">Valor USD</th><th class="r">P&L</th><th class="r">Rend.</th>
-            <th class="r">TIR anual</th>
+          <thead id="op-thead"><tr>
+            <th class="sortable" data-col="0" onclick="sortTable('ops',0)">Ticker</th>
+            <th class="sortable" data-col="1" onclick="sortTable('ops',1)">Plataforma</th>
+            <th class="sortable r" data-col="2" onclick="sortTable('ops',2)">Cantidad</th>
+            <th class="sortable r" data-col="3" onclick="sortTable('ops',3)">P.Prom. Compra</th>
+            <th class="sortable r" data-col="4" onclick="sortTable('ops',4)">Cot. actual</th>
+            <th class="sortable r" data-col="5" onclick="sortTable('ops',5)">Valor USD</th>
+            <th class="sortable r" data-col="6" onclick="sortTable('ops',6)">P&amp;L</th>
+            <th class="sortable r" data-col="7" onclick="sortTable('ops',7)">Rend.</th>
+            <th class="sortable r" data-col="8" onclick="sortTable('ops',8)">TIR anual</th>
           </tr></thead>
           <tbody id="op-table"></tbody>
         </table>
@@ -777,10 +787,17 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
       <div id="hist-year-filters" class="year-filters" style="padding:0 4px"></div>
       <div class="table-wrap" style="max-height:400px;overflow-y:auto">
         <table>
-          <thead><tr>
-            <th>Ticker</th><th>Plataforma</th><th>Fecha compra</th><th>Fecha venta</th>
-            <th class="r">Cantidad</th><th class="r">P.Compra</th><th class="r">P.Venta</th>
-            <th class="r">P&L</th><th class="r">Rend.</th><th class="r">TIR anual</th>
+          <thead id="hist-thead"><tr>
+            <th class="sortable" data-col="0" onclick="sortTable('hist',0)">Ticker</th>
+            <th class="sortable" data-col="1" onclick="sortTable('hist',1)">Plataforma</th>
+            <th class="sortable" data-col="2" onclick="sortTable('hist',2)">Fecha compra</th>
+            <th class="sortable" data-col="3" onclick="sortTable('hist',3)">Fecha venta</th>
+            <th class="sortable r" data-col="4" onclick="sortTable('hist',4)">Cantidad</th>
+            <th class="sortable r" data-col="5" onclick="sortTable('hist',5)">P.Compra</th>
+            <th class="sortable r" data-col="6" onclick="sortTable('hist',6)">P.Venta</th>
+            <th class="sortable r" data-col="7" onclick="sortTable('hist',7)">P&amp;L</th>
+            <th class="sortable r" data-col="8" onclick="sortTable('hist',8)">Rend.</th>
+            <th class="sortable r" data-col="9" onclick="sortTable('hist',9)">TIR anual</th>
           </tr></thead>
           <tbody id="hist-table"></tbody>
         </table>
@@ -1205,8 +1222,37 @@ const PRICES = {
   BIDU:11.83, TZX26:0.00261, SUPV:1.7076, BMA:7.51, MSFT:14.076,
   ETH:2500, SOL:170, DOT:5, RAY:1.5, ADA:0.7,
 };
+// Tipo de cambio CCL (ARS/USD) — se actualiza con fetchQuotes para convertir precios BYMA
+let CCL_RATE = 1300;
+
 // Cambio 24h en % (se actualiza con fetchQuotes)
 const PRICE_CHANGES = {};
+
+// Estado de ordenamiento para tablas
+const TABLE_SORT = {
+  ops:  { col: null, dir: 1 },
+  hist: { col: null, dir: 1 },
+  datos: { col: null, dir: 1 },
+};
+
+function sortTable(name, col) {
+  const s = TABLE_SORT[name];
+  if (s.col === col) s.dir *= -1; else { s.col = col; s.dir = 1; }
+  if (name === 'ops')   renderOperaciones();
+  if (name === 'hist')  renderHistorico();
+  if (name === 'datos') renderDatos();
+}
+
+function applySortHeaders(theadId, name) {
+  const thead = document.getElementById(theadId);
+  if (!thead) return;
+  thead.querySelectorAll('th.sortable').forEach(th => {
+    const col = parseInt(th.dataset.col);
+    const s = TABLE_SORT[name];
+    th.removeAttribute('data-sort');
+    if (s.col === col) th.setAttribute('data-sort', s.dir === 1 ? 'asc' : 'desc');
+  });
+}
 
 // Guarda snapshot de precios al inicio del día en localStorage para calcular variación diaria
 function saveDailyPrices() {
@@ -1346,7 +1392,17 @@ async function fetchQuotes() {
   btn.classList.add('loading');
   let fetched = 0;
   try {
-    // CoinGecko — precio + cambio 24h
+    // CCL (tipo de cambio para convertir precios BYMA de ARS a USD)
+    try {
+      const rCCL = await fetch('https://dolarapi.com/v1/dolares/contadoconliqui', {signal:AbortSignal.timeout(5000)});
+      if (rCCL.ok) {
+        const dCCL = await rCCL.json();
+        const ccl = parseFloat(dCCL.venta || dCCL.compra || 0);
+        if (ccl > 100) { CCL_RATE = ccl; console.log('[CCL]', ccl); }
+      }
+    } catch(e) { console.warn('CCL fetch fallback:', CCL_RATE); }
+
+    // CoinGecko — precio + cambio 24h para crypto
     const cryptos = Object.keys(POSITIONS).filter(tk => CG_IDS[tk]);
     if (cryptos.length) {
       const ids = cryptos.map(tk=>CG_IDS[tk]).join(',');
@@ -1362,33 +1418,36 @@ async function fetchQuotes() {
         });
       }
     }
-    // BYMA — precio + variación (calculada desde apertura si el campo directo no existe)
-    try {
-      const r = await fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/leading-equity',{signal:AbortSignal.timeout(8000)});
-      if (r.ok) {
-        const d = await r.json();
-        const items = Array.isArray(d)?d:(d.data||[]);
-        items.forEach(it => {
-          const sym = (it.symbol||'').trim();
-          const pr = parseFloat(it.trade||it.price||0);
-          if (sym && pr && POSITIONS[sym]) {
-            PRICES[sym] = pr; fetched++;
-            // Intentar campo directo de variación
-            const directChg = parseFloat(it.variation||it.changePercent||it.variationClose||0);
-            if (directChg) {
-              PRICE_CHANGES[sym] = Math.abs(directChg) > 1 ? directChg/100 : directChg;
-            } else {
-              // Calcular desde precio de apertura
-              const open = parseFloat(it.openingPrice||it.previousClose||it.open||0);
-              if (open > 0) PRICE_CHANGES[sym] = (pr - open) / open;
-            }
-            console.log('[BYMA]', sym, 'trade:', pr, '| variation fields:', {variation:it.variation, changePercent:it.changePercent, variationClose:it.variationClose, openingPrice:it.openingPrice}, '→ PRICE_CHANGES:', PRICE_CHANGES[sym]);
-          }
-        });
-      }
-    } catch(e) { console.warn('BYMA',e); }
 
-    // Respaldo: calcular variación desde precios guardados ayer
+    // BYMA — Acciones líderes + CEDEARs (ambos requieren POST)
+    try {
+      const POST = {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'};
+      const [r1, r2] = await Promise.all([
+        fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/leading-equity', {signal:AbortSignal.timeout(8000), ...POST}),
+        fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cedears',        {signal:AbortSignal.timeout(8000), ...POST}),
+      ]);
+      // Construir lookup unificado {símbolo → item}
+      const byma = {};
+      if (r1.ok) { const d = await r1.json(); (d.data||[]).forEach(it => { if(it.trade) byma[(it.symbol||'').trim()] = it; }); }
+      if (r2.ok) { const d = await r2.json(); (Array.isArray(d)?d:(d.data||[])).forEach(it => { if(it.trade) byma[(it.symbol||'').trim()] = it; }); }
+
+      // Para cada posición no-crypto, buscar precio en BYMA
+      Object.keys(POSITIONS).filter(tk => !CG_IDS[tk]).forEach(tk => {
+        // Preferir variante "C" (Contado Cable = USD directo) o "D"; sino ARS÷CCL
+        const usd = byma[tk+'C'] || byma[tk+'D'];
+        const ars = byma[tk];
+        const item = (usd && usd.trade > 0) ? usd : (ars && ars.trade > 0 ? ars : null);
+        if (!item) return;
+        const isUSD = !!(usd && usd.trade > 0);
+        PRICES[tk] = isUSD ? item.trade : item.trade / CCL_RATE;
+        const open = item.openingPrice || item.previousClosingPrice || 0;
+        if (open > 0) PRICE_CHANGES[tk] = (item.trade - open) / open;
+        fetched++;
+        console.log('[BYMA]', tk, isUSD?'USD':'ARS÷CCL', '→ $'+PRICES[tk].toFixed(3), '| chg:', (PRICE_CHANGES[tk]*100||0).toFixed(2)+'%');
+      });
+    } catch(e) { console.warn('BYMA error:', e); }
+
+    // Respaldo: calcular variación desde precios guardados del día anterior
     loadPriceChangesFromDaily();
 
     const ts = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
@@ -1548,9 +1607,24 @@ function renderHome() {
 // ═══════════════════════════════════════════════════
 function renderOperaciones() {
   let totalPnl = 0;
-  const entries = opCatFilter
+  let entries = opCatFilter
     ? Object.entries(POSITIONS).filter(([,p]) => p.type === opCatFilter)
     : Object.entries(POSITIONS);
+
+  // Ordenamiento
+  const s = TABLE_SORT.ops;
+  if (s.col !== null) {
+    entries = [...entries].sort(([tkA, pA], [tkB, pB]) => {
+      const cotA = PRICES[tkA]||pA.avgPrice, valA = cotA*pA.qty, pnlA = (cotA-pA.avgPrice)*pA.qty;
+      const cotB = PRICES[tkB]||pB.avgPrice, valB = cotB*pB.qty, pnlB = (cotB-pB.avgPrice)*pB.qty;
+      const pctA = pnlA/valA, pctB = pnlB/valB;
+      const tirA = getTIROpen(tkA)||0, tirB = getTIROpen(tkB)||0;
+      const vals = [tkA, pA.platform, pA.qty, pA.avgPrice, cotA, valA, pnlA, pctA, tirA];
+      const valsB= [tkB, pB.platform, pB.qty, pB.avgPrice, cotB, valB, pnlB, pctB, tirB];
+      const a = vals[s.col], b = valsB[s.col];
+      return (typeof a === 'string' ? a.localeCompare(b) : a - b) * s.dir;
+    });
+  }
 
   const rows = entries.map(([tk, p]) => {
     const cot = PRICES[tk] || p.avgPrice;
@@ -1573,6 +1647,7 @@ function renderOperaciones() {
   }).join('');
 
   document.getElementById('op-table').innerHTML = rows;
+  applySortHeaders('op-thead', 'ops');
   const pill = document.getElementById('op-pnl-pill');
   const filterTag = opCatFilter ? ` <span class="filter-active-pill" onclick="setOpCatFilter(null)" title="Quitar filtro">🏷 ${opCatFilter} ✕</span>` : '';
   pill.innerHTML = `P&L activo: ${fmtH(totalPnl)}${filterTag}`;
@@ -1621,8 +1696,23 @@ function renderHistorico() {
     <td class="r ${v.pnl>=0?'pos':'neg'}">${fmtH(v.pnl)}</td>
     <td class="r"><span class="badge ${v.pnl>=0?'bp':'bn'}">${fmtPct(v.pct/v.n)}</span></td></tr>`).join('');
 
-  // Tabla completa con TIR
-  document.getElementById('hist-table').innerHTML = [...filtered].reverse().map(t => {
+  // Tabla completa con TIR + ordenamiento
+  const sh = TABLE_SORT.hist;
+  let sortedFiltered = [...filtered];
+  if (sh.col !== null) {
+    const parseDate = s => { if(!s||s==='?') return 0; const [d,m,y]=s.split('/'); return new Date(y,m-1,d).getTime()||0; };
+    sortedFiltered.sort((a, b) => {
+      const tirA = getTIRClosed(a)||0, tirB = getTIRClosed(b)||0;
+      const vals  = [a.t, a.plat, parseDate(a.bd), parseDate(a.sd), a.q, a.bP, a.sP, a.pnl, a.pct, tirA];
+      const valsB = [b.t, b.plat, parseDate(b.bd), parseDate(b.sd), b.q, b.bP, b.sP, b.pnl, b.pct, tirB];
+      const av = vals[sh.col], bv = valsB[sh.col];
+      return (typeof av === 'string' ? av.localeCompare(bv) : av - bv) * sh.dir;
+    });
+  } else {
+    sortedFiltered.reverse(); // default: más reciente primero
+  }
+
+  document.getElementById('hist-table').innerHTML = sortedFiltered.map(t => {
     const tir = getTIRClosed(t);
     return `<tr>
       <td><span class="ticker">${t.t}</span></td>
@@ -1637,6 +1727,7 @@ function renderHistorico() {
       <td class="r">${fmtTIR(tir)}</td>
     </tr>`;
   }).join('');
+  applySortHeaders('hist-thead', 'hist');
 
   const byPlat = {};
   filtered.forEach(t=>{ if(!byPlat[t.plat]) byPlat[t.plat]=0; byPlat[t.plat]+=t.pnl; });
@@ -2833,7 +2924,34 @@ function renderDatos() {
   const ingresos = rows.filter(r=>(r[2]||'').toUpperCase()==='INGRESO').length;
   const egresos  = rows.filter(r=>(r[2]||'').toUpperCase()==='EGRESO').length;
 
-  const COLS = ['Fecha','Plataforma','Tipo','Activo','Cantidad','Precio USD','Notas'];
+  // Columnas: índice en r[], label, align
+  const COLS = [
+    [0,'Fecha','left'],[1,'Plataforma','left'],[2,'Tipo','left'],
+    [3,'Activo','left'],[4,'Cantidad','right'],[5,'Precio USD','right'],[6,'Notas','left']
+  ];
+
+  // Ordenamiento
+  const sd = TABLE_SORT.datos;
+  let sortedRows = [...rows];
+  if (sd.col !== null) {
+    const parseDate = s => { if(!s) return 0; const p=s.split('/'); return p.length===3?new Date(p[2],p[1]-1,p[0]).getTime():0; };
+    sortedRows.sort((a, b) => {
+      let av = a[sd.col] || '', bv = b[sd.col] || '';
+      if (sd.col === 0) { av = parseDate(av); bv = parseDate(bv); }
+      else if (sd.col === 4 || sd.col === 5) {
+        av = parseFloat(String(av).replace(',','.'))||0;
+        bv = parseFloat(String(bv).replace(',','.'))||0;
+      }
+      return (typeof av === 'string' ? av.localeCompare(bv) : av - bv) * sd.dir;
+    });
+  }
+
+  const thSort = (idx, label, align) => {
+    const active = sd.col === idx;
+    const arrow = active ? (sd.dir===1 ? ' ↑' : ' ↓') : '';
+    const dataSort = active ? `data-sort="${sd.dir===1?'asc':'desc'}"` : '';
+    return `<th class="sortable" ${dataSort} data-col="${idx}" style="text-align:${align};cursor:pointer" onclick="sortTable('datos',${idx})">${label}${arrow}</th>`;
+  };
 
   el.innerHTML = `
     <div class="xl-stats">
@@ -2846,10 +2964,10 @@ function renderDatos() {
     <table class="xl-table">
       <thead><tr>
         <th class="xl-rn">#</th>
-        ${COLS.map((c,i)=>`<th style="text-align:${i>=4?'right':'left'}">${c}</th>`).join('')}
+        ${COLS.map(([i,l,a])=>thSort(i,l,a)).join('')}
       </tr></thead>
       <tbody>
-        ${rows.map((r,i)=>{
+        ${sortedRows.map((r,i)=>{
           const tipo = (r[2]||'').toUpperCase();
           const tipoClass = {COMPRA:'xl-compra',VENTA:'xl-venta',INGRESO:'xl-ingreso',EGRESO:'xl-egreso'}[tipo]||'';
           const qty   = parseFloat(String(r[4]||0).replace(',','.'));
