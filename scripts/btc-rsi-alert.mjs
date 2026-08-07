@@ -1,5 +1,7 @@
 // Chequea el RSI(14) de BTC en velas de 1h y manda un push por ntfy.sh
 // cuando el RSI toca la zona de sobrecompra (>=68) o sobreventa (<=32).
+// Mientras el RSI se mantenga fuera de rango, vuelve a avisar en cada
+// vela nueva (cada hora) — no solo al momento del cruce.
 // También calcula el POC (Point of Control) de volumen sobre las
 // últimas 24 velas de 1h y lo incluye en el mensaje.
 //
@@ -102,7 +104,7 @@ async function loadState() {
     const raw = await readFile(STATE_PATH, 'utf8');
     return JSON.parse(raw);
   } catch {
-    return { zone: 'neutral', rsi: null, updatedAt: null };
+    return { zone: 'neutral', zoneSince: null, lastAlertCandleTime: null, rsi: null, poc: null, updatedAt: null };
   }
 }
 
@@ -135,34 +137,49 @@ async function main() {
   const candles = await fetchHourlyCandles();
   const closes = candles.map((c) => c[4]);
   const lastClose = closes[closes.length - 1];
+  const candleTime = candles[candles.length - 1][0];
   const rsi = computeRSI(closes);
   const poc = computePOC(candles);
   const currentZone = zoneFor(rsi);
 
   const prevState = await loadState();
   const prevZone = prevState.zone || 'neutral';
+  const justEntered = currentZone !== prevZone;
+  const zoneSince = justEntered ? candleTime : (prevState.zoneSince || candleTime);
+  const hoursInZone = Math.max(0, Math.round((candleTime - zoneSince) / GRANULARITY));
 
   console.log(
     `BTC 1h — precio: $${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · ` +
-      `POC(24h): $${poc.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone})`
+      `POC(24h): $${poc.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone}, hace ${hoursInZone}h)`
   );
 
-  const justEntered = currentZone !== 'neutral' && currentZone !== prevZone;
+  // Avisa mientras esté fuera de rango, una vez por vela (no repite si se
+  // re-ejecuta a mano dentro de la misma hora).
+  const shouldAlert = currentZone !== 'neutral' && prevState.lastAlertCandleTime !== candleTime;
 
-  if (justEntered) {
+  if (shouldAlert) {
     const isOverbought = currentZone === 'overbought';
+    const estadoTxt = justEntered
+      ? `${isOverbought ? 'subió a' : 'bajó a'} ${rsi.toFixed(1)}`
+      : `sigue en ${isOverbought ? 'sobrecompra' : 'sobreventa'} hace ${hoursInZone}h (${rsi.toFixed(1)})`;
     await sendPush({
       title: isOverbought ? '🔴 BTC RSI 1h — Sobrecompra' : '🟢 BTC RSI 1h — Sobreventa',
-      message: `RSI(14) en 1h ${isOverbought ? 'subió a' : 'bajó a'} ${rsi.toFixed(1)} ` +
-        `(umbral ${isOverbought ? RSI_OVERBOUGHT : RSI_OVERSOLD}). Precio BTC: $${lastClose.toFixed(2)} · ` +
-        `POC 24h: $${poc.toFixed(2)}`,
+      message: `RSI(14) en 1h ${estadoTxt} (umbral ${isOverbought ? RSI_OVERBOUGHT : RSI_OVERSOLD}). ` +
+        `Precio BTC: $${lastClose.toFixed(2)} · POC 24h: $${poc.toFixed(2)}`,
       tags: isOverbought ? ['rotating_light', 'chart_with_upwards_trend'] : ['rotating_light', 'chart_with_downwards_trend'],
       priority: 4,
     });
     console.log('Push enviado.');
   }
 
-  await saveState({ zone: currentZone, rsi, poc, updatedAt: new Date().toISOString() });
+  await saveState({
+    zone: currentZone,
+    zoneSince: currentZone === 'neutral' ? null : zoneSince,
+    lastAlertCandleTime: shouldAlert ? candleTime : prevState.lastAlertCandleTime,
+    rsi,
+    poc,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 main().catch((err) => {
