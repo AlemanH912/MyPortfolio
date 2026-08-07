@@ -1,0 +1,41 @@
+name: BTC RSI 1h Alert
+
+on:
+  schedule:
+    # A los 5' de cada hora, para dar margen a que cierre la vela horaria.
+    - cron: '5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: btc-rsi-alert
+  cancel-in-progress: false
+
+jobs:
+  check-rsi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Chequear RSI y notificar si corresponde
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: node scripts/btc-rsi-alert.mjs
+
+      - name: Guardar estado si cambió
+        run: |
+          if ! git diff --quiet -- data/rsi-alert-state.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data/rsi-alert-state.json
+            git commit -m "chore: actualizar estado de alerta RSI BTC"
+            git push
+          else
+            echo "Sin cambios de estado."
+          fi
