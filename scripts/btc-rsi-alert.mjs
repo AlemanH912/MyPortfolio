@@ -9,6 +9,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { computeRSI } from './lib/indicators.mjs';
 
 const PRODUCT = 'BTC-USD';
 const GRANULARITY = 3600; // 1h, en segundos
@@ -19,31 +20,6 @@ const POC_LOOKBACK_HOURS = 24;
 const POC_BINS = 50;
 
 const STATE_PATH = path.join(process.cwd(), 'data', 'rsi-alert-state.json');
-
-function computeRSI(closes, period = RSI_PERIOD) {
-  if (closes.length < period + 1) {
-    throw new Error(`Se necesitan al menos ${period + 1} velas, llegaron ${closes.length}`);
-  }
-  let gains = 0;
-  let losses = 0;
-  for (let i = 1; i <= period; i++) {
-    const diff = closes[i] - closes[i - 1];
-    if (diff >= 0) gains += diff;
-    else losses += -diff;
-  }
-  let avgGain = gains / period;
-  let avgLoss = losses / period;
-  for (let i = period + 1; i < closes.length; i++) {
-    const diff = closes[i] - closes[i - 1];
-    const gain = diff > 0 ? diff : 0;
-    const loss = diff < 0 ? -diff : 0;
-    avgGain = (avgGain * (period - 1) + gain) / period;
-    avgLoss = (avgLoss * (period - 1) + loss) / period;
-  }
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  return 100 - 100 / (1 + rs);
-}
 
 // Perfil de volumen simple: reparte el volumen de cada vela de forma
 // pareja entre los bins de precio que cubre su rango [low, high], y
@@ -138,7 +114,7 @@ async function main() {
   const closes = candles.map((c) => c[4]);
   const lastClose = closes[closes.length - 1];
   const candleTime = candles[candles.length - 1][0];
-  const rsi = computeRSI(closes);
+  const rsi = computeRSI(closes, RSI_PERIOD);
   const poc = computePOC(candles);
   const currentZone = zoneFor(rsi);
 
