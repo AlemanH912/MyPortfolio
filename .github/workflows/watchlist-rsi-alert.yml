@@ -1,0 +1,41 @@
+name: Watchlist RSI Diario
+
+on:
+  schedule:
+    # 21:30 UTC (~18:30 ART), de lunes a viernes, con margen tras el cierre de NYSE/NASDAQ.
+    - cron: '30 21 * * 1-5'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: watchlist-rsi-alert
+  cancel-in-progress: false
+
+jobs:
+  check-watchlist-rsi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Chequear RSI diario de la watchlist y notificar
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: node scripts/watchlist-rsi-alert.mjs
+
+      - name: Guardar estado si cambió
+        run: |
+          if ! git diff --quiet -- data/watchlist-rsi-state.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data/watchlist-rsi-state.json
+            git commit -m "chore: actualizar estado de alerta RSI watchlist"
+            git push
+          else
+            echo "Sin cambios de estado."
+          fi
