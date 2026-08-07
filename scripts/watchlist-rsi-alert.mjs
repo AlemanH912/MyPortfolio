@@ -61,7 +61,9 @@ async function fetchStooqCloses(stooqSymbol) {
 
   rows.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   const closes = rows.map((cols) => parseFloat(cols[4]));
-  if (closes.some((c) => Number.isNaN(c))) throw new Error('Stooq devolvió datos inválidos');
+  if (closes.some((c) => Number.isNaN(c))) {
+    throw new Error(`Stooq devolvió datos inválidos. Muestra cruda: ${JSON.stringify(text.slice(0, 300))}`);
+  }
   return closes;
 }
 
