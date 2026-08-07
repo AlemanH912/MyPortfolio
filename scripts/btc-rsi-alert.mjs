@@ -9,7 +9,7 @@ import path from 'node:path';
 const PRODUCT = 'BTC-USD';
 const GRANULARITY = 3600; // 1h, en segundos
 const RSI_PERIOD = 14;
-const RSI_OVERBOUGHT = 68;
+const RSI_OVERBOUGHT = 50; // TEMP: umbral bajado para forzar push de prueba, revertir a 68
 const RSI_OVERSOLD = 32;
 
 const STATE_PATH = path.join(process.cwd(), 'data', 'rsi-alert-state.json');
