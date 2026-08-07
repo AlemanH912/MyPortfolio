@@ -18,26 +18,11 @@ const RSI_OVERSOLD = 30;
 
 const STATE_PATH = path.join(process.cwd(), 'data', 'watchlist-rsi-state.json');
 
-// ADRs/acciones vía Stooq (fuente gratuita, sin API key).
-const STOCKS = [
-  { symbol: 'BMA', stooq: 'BMA.US' },
-  { symbol: 'PAM', stooq: 'PAM.US' },
-  { symbol: 'MELI', stooq: 'MELI.US' },
-  { symbol: 'BIDU', stooq: 'BIDU.US' },
-  { symbol: 'MSFT', stooq: 'MSFT.US' },
-  { symbol: 'YPF', stooq: 'YPF.US' },
-  { symbol: 'SUPV', stooq: 'SUPV.US' },
-  { symbol: 'TGS', stooq: 'TGS.US' },
-  { symbol: 'UBER', stooq: 'UBER.US' },
-  { symbol: 'GGAL', stooq: 'GGAL.US' },
-  { symbol: 'TSLA', stooq: 'TSLA.US' },
-  { symbol: 'AMD', stooq: 'AMD.US' },
-  { symbol: 'BABA', stooq: 'BABA.US' },
-  { symbol: 'AAPL', stooq: 'AAPL.US' },
-  { symbol: 'INTC', stooq: 'INTC.US' },
-  { symbol: 'TS', stooq: 'TS.US' },
-  { symbol: 'NVDA', stooq: 'NVDA.US' },
-];
+const BROWSER_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+// Acciones/ADRs vía la API de gráficos de Yahoo Finance (gratuita, sin API key).
+const STOCKS = ['BMA', 'PAM', 'MELI', 'BIDU', 'MSFT', 'YPF', 'SUPV', 'TGS', 'UBER', 'GGAL', 'TSLA', 'AMD', 'BABA', 'AAPL', 'INTC', 'TS', 'NVDA'];
 
 // Cripto vía Coinbase (BTC ya lo cubre la alerta de 1h, pero lo incluimos
 // también en diario para que conviva con el resto del watchlist).
@@ -46,23 +31,18 @@ const CRYPTOS = [
   { symbol: 'BTC', product: 'BTC-USD' },
 ];
 
-async function fetchStooqCloses(stooqSymbol) {
-  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSymbol)}&i=d`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'myportfolio-rsi-alert/1.0' } });
-  if (!res.ok) throw new Error(`Stooq respondió ${res.status}`);
-  const text = (await res.text()).trim();
-  if (!text || /^no data/i.test(text)) throw new Error('Stooq no tiene datos para este símbolo');
-
-  const rows = text
-    .split('\n')
-    .slice(1) // header: Date,Open,High,Low,Close,Volume
-    .map((line) => line.split(','))
-    .filter((cols) => cols.length >= 5 && cols[4] !== '');
-
-  rows.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-  const closes = rows.map((cols) => parseFloat(cols[4]));
-  if (closes.some((c) => Number.isNaN(c))) {
-    throw new Error(`Stooq devolvió datos inválidos. Muestra cruda: ${JSON.stringify(text.slice(0, 300))}`);
+async function fetchYahooCloses(symbol) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`;
+  const res = await fetch(url, { headers: { 'User-Agent': BROWSER_UA } });
+  if (!res.ok) throw new Error(`Yahoo respondió ${res.status}`);
+  const data = await res.json();
+  const result = data?.chart?.result?.[0];
+  if (!result) {
+    throw new Error(`Yahoo: ${data?.chart?.error?.description || 'sin datos'}`);
+  }
+  const closes = (result.indicators?.quote?.[0]?.close || []).filter((c) => c != null);
+  if (closes.length < RSI_PERIOD + 1) {
+    throw new Error(`Yahoo devolvió muy pocos datos (${closes.length})`);
   }
   return closes;
 }
@@ -144,12 +124,12 @@ async function checkTicker(symbol, closes, state) {
 async function main() {
   const state = await loadState();
 
-  for (const { symbol, stooq } of STOCKS) {
+  for (const symbol of STOCKS) {
     try {
-      const closes = await fetchStooqCloses(stooq);
+      const closes = await fetchYahooCloses(symbol);
       await checkTicker(symbol, closes, state);
     } catch (err) {
-      console.error(`Error con ${symbol} (${stooq}): ${err.message}`);
+      console.error(`Error con ${symbol}: ${err.message}`);
     }
   }
 
