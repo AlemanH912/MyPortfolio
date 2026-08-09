@@ -4,7 +4,9 @@
   "lastAlertCandleTime": 1786294800,
   "lastBearishDivTime": 1786197600,
   "lastBullishDivTime": null,
-  "rsi": 57.94794200358953,
+  "lastBearishConfluenceTime": null,
+  "lastBullishConfluenceTime": null,
+  "rsi": 57.33153107030591,
   "poc": 64912.1057,
-  "updatedAt": "2026-08-09T21:10:54.430Z"
+  "updatedAt": "2026-08-09T21:23:30.703Z"
 }
