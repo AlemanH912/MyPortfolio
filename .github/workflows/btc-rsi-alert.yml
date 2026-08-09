@@ -2,8 +2,8 @@ name: BTC RSI 1h Alert
 
 on:
   schedule:
-    # A los 5' de cada hora, para dar margen a que cierre la vela horaria.
-    - cron: '5 * * * *'
+    # Cada 15 minutos, usando la vela de 1h en curso para avisar más rápido.
+    - cron: '*/15 * * * *'
   workflow_dispatch: {}
 
 permissions:
