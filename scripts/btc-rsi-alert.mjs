@@ -5,6 +5,11 @@
 // — no solo al momento del cruce. También calcula el POC (Point of
 // Control) de volumen sobre las últimas 24 velas de 1h.
 //
+// Además detecta divergencias entre el precio y el Momentum Oscillator
+// (bajista: precio hace un máximo más alto con momentum más débil;
+// alcista: precio hace un mínimo más bajo con momentum más fuerte) y
+// manda un tipo de notificación aparte (🔀) cuando aparece una nueva.
+//
 // Nota: como se evalúa la vela en formación, el RSI mostrado es "en vivo"
 // y puede variar hasta que cierre la hora (no es repintado histórico,
 // es el mismo comportamiento que un RSI intradía en TradingView).
@@ -13,7 +18,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { computeRSI } from './lib/indicators.mjs';
+import { computeRSI, computeMomentum, detectDivergence } from './lib/indicators.mjs';
 
 const PRODUCT = 'BTC-USD';
 const GRANULARITY = 3600; // 1h, en segundos
@@ -22,6 +27,8 @@ const RSI_OVERBOUGHT = 68;
 const RSI_OVERSOLD = 32;
 const POC_LOOKBACK_HOURS = 24;
 const POC_BINS = 50;
+const MOMENTUM_PERIOD = 10;
+const PIVOT_LOOKBACK = 3;
 const CHART_URL = 'https://www.tradingview.com/symbols/BTCUSD/';
 
 const STATE_PATH = path.join(process.cwd(), 'data', 'rsi-alert-state.json');
@@ -81,7 +88,16 @@ async function loadState() {
     const raw = await readFile(STATE_PATH, 'utf8');
     return JSON.parse(raw);
   } catch {
-    return { zone: 'neutral', zoneSince: null, lastAlertCandleTime: null, rsi: null, poc: null, updatedAt: null };
+    return {
+      zone: 'neutral',
+      zoneSince: null,
+      lastAlertCandleTime: null,
+      lastBearishDivTime: null,
+      lastBullishDivTime: null,
+      rsi: null,
+      poc: null,
+      updatedAt: null,
+    };
   }
 }
 
@@ -117,6 +133,8 @@ async function main() {
   const candleTime = candles[candles.length - 1][0];
   const rsi = computeRSI(closes, RSI_PERIOD);
   const poc = computePOC(candles);
+  const momentum = computeMomentum(closes, MOMENTUM_PERIOD);
+  const divergence = detectDivergence(closes, momentum, PIVOT_LOOKBACK);
   const currentZone = zoneFor(rsi);
 
   const prevState = await loadState();
@@ -127,14 +145,15 @@ async function main() {
 
   console.log(
     `BTC 1h — precio: $${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · ` +
-      `POC(24h): $${poc.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone}, hace ${hoursInZone}h)`
+      `POC(24h): $${poc.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone}, hace ${hoursInZone}h) · ` +
+      `divergencia: bajista=${divergence.bearish ? 'sí' : 'no'} alcista=${divergence.bullish ? 'sí' : 'no'}`
   );
 
   // Avisa mientras esté fuera de rango, una vez por vela (no repite si se
   // re-ejecuta dentro de la misma hora ya avisada).
-  const shouldAlert = currentZone !== 'neutral' && prevState.lastAlertCandleTime !== candleTime;
+  const shouldAlertRSI = currentZone !== 'neutral' && prevState.lastAlertCandleTime !== candleTime;
 
-  if (shouldAlert) {
+  if (shouldAlertRSI) {
     const isOverbought = currentZone === 'overbought';
     const threshold = isOverbought ? RSI_OVERBOUGHT : RSI_OVERSOLD;
     const comparador = isOverbought ? '≥' : '≤';
@@ -153,13 +172,49 @@ async function main() {
       priority: 4,
       click: CHART_URL,
     });
-    console.log('Push enviado.');
+    console.log('Push RSI enviado.');
+  }
+
+  // Divergencia bajista: precio hace un máximo más alto, momentum más débil.
+  const bearishDivTime = divergence.bearish ? candles[divergence.bearish.i2][0] : null;
+  const shouldAlertBearishDiv = bearishDivTime !== null && bearishDivTime !== prevState.lastBearishDivTime;
+  if (shouldAlertBearishDiv) {
+    const { i1, i2 } = divergence.bearish;
+    await sendPush({
+      title: '🔀 BTC — Divergencia bajista (Momentum)',
+      message: `📉 Precio: ${fmtUSD(closes[i1])} → **${fmtUSD(closes[i2])}** (nuevo máximo)\n` +
+        `📊 Momentum(${MOMENTUM_PERIOD}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más débil)\n` +
+        `⚠️ El impulso alcista se está agotando`,
+      tags: ['bar_chart', 'chart_with_downwards_trend'],
+      priority: 3,
+      click: CHART_URL,
+    });
+    console.log('Push divergencia bajista enviado.');
+  }
+
+  // Divergencia alcista: precio hace un mínimo más bajo, momentum más fuerte.
+  const bullishDivTime = divergence.bullish ? candles[divergence.bullish.i2][0] : null;
+  const shouldAlertBullishDiv = bullishDivTime !== null && bullishDivTime !== prevState.lastBullishDivTime;
+  if (shouldAlertBullishDiv) {
+    const { i1, i2 } = divergence.bullish;
+    await sendPush({
+      title: '🔀 BTC — Divergencia alcista (Momentum)',
+      message: `📈 Precio: ${fmtUSD(closes[i1])} → **${fmtUSD(closes[i2])}** (nuevo mínimo)\n` +
+        `📊 Momentum(${MOMENTUM_PERIOD}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más fuerte)\n` +
+        `⚠️ La presión vendedora se está agotando`,
+      tags: ['bar_chart', 'chart_with_upwards_trend'],
+      priority: 3,
+      click: CHART_URL,
+    });
+    console.log('Push divergencia alcista enviado.');
   }
 
   await saveState({
     zone: currentZone,
     zoneSince: currentZone === 'neutral' ? null : zoneSince,
-    lastAlertCandleTime: shouldAlert ? candleTime : prevState.lastAlertCandleTime,
+    lastAlertCandleTime: shouldAlertRSI ? candleTime : prevState.lastAlertCandleTime,
+    lastBearishDivTime: shouldAlertBearishDiv ? bearishDivTime : (prevState.lastBearishDivTime ?? null),
+    lastBullishDivTime: shouldAlertBullishDiv ? bullishDivTime : (prevState.lastBullishDivTime ?? null),
     rsi,
     poc,
     updatedAt: new Date().toISOString(),
