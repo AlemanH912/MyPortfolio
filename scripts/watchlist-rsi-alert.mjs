@@ -21,6 +21,8 @@ const STATE_PATH = path.join(process.cwd(), 'data', 'watchlist-rsi-state.json');
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
+const fmt = (n) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+
 // Acciones/ADRs vía la API de gráficos de Yahoo Finance (gratuita, sin API key).
 const STOCKS = ['BMA', 'PAM', 'MELI', 'BIDU', 'MSFT', 'YPF', 'SUPV', 'TGS', 'UBER', 'GGAL', 'TSLA', 'AMD', 'BABA', 'AAPL', 'INTC', 'TS', 'NVDA'];
 
@@ -30,6 +32,10 @@ const CRYPTOS = [
   { symbol: 'ETH', product: 'ETH-USD' },
   { symbol: 'BTC', product: 'BTC-USD' },
 ];
+
+function chartUrlFor(symbol) {
+  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+}
 
 async function fetchYahooCloses(symbol) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`;
@@ -82,14 +88,14 @@ function zoneFor(rsi) {
   return 'neutral';
 }
 
-async function sendPush({ title, message, tags, priority }) {
+async function sendPush({ title, message, tags, priority, click }) {
   const topic = process.env.NTFY_TOPIC;
   if (!topic) throw new Error('Falta la env var NTFY_TOPIC');
   const server = process.env.NTFY_SERVER || 'https://ntfy.sh';
   const res = await fetch(server, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic, title, message, tags, priority }),
+    body: JSON.stringify({ topic, title, message, tags, priority, click, markdown: true }),
   });
   if (!res.ok) {
     throw new Error(`ntfy respondió ${res.status}: ${await res.text()}`);
@@ -108,12 +114,15 @@ async function checkTicker(symbol, closes, state) {
 
   if (justEntered) {
     const isOverbought = currentZone === 'overbought';
+    const threshold = isOverbought ? RSI_OVERBOUGHT : RSI_OVERSOLD;
+    const comparador = isOverbought ? '≥' : '≤';
+
     await sendPush({
       title: isOverbought ? `🔴 ${symbol} — Sobrecompra (RSI diario)` : `🟢 ${symbol} — Sobreventa (RSI diario)`,
-      message: `${symbol}: RSI(14) diario ${isOverbought ? 'subió a' : 'bajó a'} ${rsi.toFixed(1)} ` +
-        `(umbral ${isOverbought ? RSI_OVERBOUGHT : RSI_OVERSOLD}). Precio: ${lastClose.toFixed(2)}`,
+      message: `📊 RSI(14): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n💰 Precio: **${fmt(lastClose)}**`,
       tags: isOverbought ? ['rotating_light', 'chart_with_upwards_trend'] : ['rotating_light', 'chart_with_downwards_trend'],
       priority: 4,
+      click: chartUrlFor(symbol),
     });
     console.log(`  → Push enviado para ${symbol}.`);
   }
