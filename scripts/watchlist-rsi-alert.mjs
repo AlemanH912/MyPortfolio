@@ -6,15 +6,22 @@
 // cruce: se calla mientras sigue fuera de rango y se vuelve a armar recién
 // cuando el RSI vuelve a zona neutral.
 //
+// También detecta divergencias entre el precio y el Momentum Oscillator
+// diario (bajista: precio hace un máximo más alto con momentum más débil;
+// alcista: precio hace un mínimo más bajo con momentum más fuerte) y
+// manda un tipo de notificación aparte (🔀) cuando aparece una nueva.
+//
 // Requiere Node 20+ (fetch global) y la env var NTFY_TOPIC.
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { computeRSI } from './lib/indicators.mjs';
+import { computeRSI, computeMomentum, detectDivergence } from './lib/indicators.mjs';
 
 const RSI_PERIOD = 14;
 const RSI_OVERBOUGHT = 70;
 const RSI_OVERSOLD = 30;
+const MOMENTUM_PERIOD = 10;
+const PIVOT_LOOKBACK = 3;
 
 const STATE_PATH = path.join(process.cwd(), 'data', 'watchlist-rsi-state.json');
 
@@ -38,7 +45,7 @@ function chartUrlFor(symbol) {
 }
 
 async function fetchYahooCloses(symbol) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=6mo`;
   const res = await fetch(url, { headers: { 'User-Agent': BROWSER_UA } });
   if (!res.ok) throw new Error(`Yahoo respondió ${res.status}`);
   const data = await res.json();
@@ -46,11 +53,20 @@ async function fetchYahooCloses(symbol) {
   if (!result) {
     throw new Error(`Yahoo: ${data?.chart?.error?.description || 'sin datos'}`);
   }
-  const closes = (result.indicators?.quote?.[0]?.close || []).filter((c) => c != null);
+  const rawCloses = result.indicators?.quote?.[0]?.close || [];
+  const rawTimes = result.timestamp || [];
+  const closes = [];
+  const times = [];
+  for (let i = 0; i < rawCloses.length; i++) {
+    if (rawCloses[i] != null) {
+      closes.push(rawCloses[i]);
+      times.push(rawTimes[i]);
+    }
+  }
   if (closes.length < RSI_PERIOD + 1) {
     throw new Error(`Yahoo devolvió muy pocos datos (${closes.length})`);
   }
-  return closes;
+  return { closes, times };
 }
 
 async function fetchCoinbaseDailyCloses(product) {
@@ -65,7 +81,7 @@ async function fetchCoinbaseDailyCloses(product) {
   const nowSec = Date.now() / 1000;
   if (last && last[0] + 86400 > nowSec) candles.pop();
 
-  return candles.map((c) => c[4]);
+  return { closes: candles.map((c) => c[4]), times: candles.map((c) => c[0]) };
 }
 
 async function loadState() {
@@ -102,15 +118,22 @@ async function sendPush({ title, message, tags, priority, click }) {
   }
 }
 
-async function checkTicker(symbol, closes, state) {
+async function checkTicker(symbol, closes, times, state) {
   const lastClose = closes[closes.length - 1];
   const rsi = computeRSI(closes, RSI_PERIOD);
+  const momentum = computeMomentum(closes, MOMENTUM_PERIOD);
+  const divergence = detectDivergence(closes, momentum, PIVOT_LOOKBACK);
   const currentZone = zoneFor(rsi);
+  const click = chartUrlFor(symbol);
 
-  const prevZone = state[symbol]?.zone || 'neutral';
+  const prev = state[symbol] || {};
+  const prevZone = prev.zone || 'neutral';
   const justEntered = currentZone !== 'neutral' && currentZone !== prevZone;
 
-  console.log(`${symbol} diario — precio: ${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone})`);
+  console.log(
+    `${symbol} diario — precio: ${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone}) · ` +
+      `divergencia: bajista=${divergence.bearish ? 'sí' : 'no'} alcista=${divergence.bullish ? 'sí' : 'no'}`
+  );
 
   if (justEntered) {
     const isOverbought = currentZone === 'overbought';
@@ -122,12 +145,53 @@ async function checkTicker(symbol, closes, state) {
       message: `📊 RSI(14): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n💰 Precio: **${fmt(lastClose)}**`,
       tags: isOverbought ? ['rotating_light', 'chart_with_upwards_trend'] : ['rotating_light', 'chart_with_downwards_trend'],
       priority: 4,
-      click: chartUrlFor(symbol),
+      click,
     });
-    console.log(`  → Push enviado para ${symbol}.`);
+    console.log(`  → Push RSI enviado para ${symbol}.`);
   }
 
-  state[symbol] = { zone: currentZone, rsi, price: lastClose, updatedAt: new Date().toISOString() };
+  // Divergencia bajista: precio hace un máximo más alto, momentum más débil.
+  const bearishDivTime = divergence.bearish ? times[divergence.bearish.i2] : null;
+  const shouldAlertBearishDiv = bearishDivTime != null && bearishDivTime !== prev.lastBearishDivTime;
+  if (shouldAlertBearishDiv) {
+    const { i1, i2 } = divergence.bearish;
+    await sendPush({
+      title: `🔀 ${symbol} — Divergencia bajista (Momentum diario)`,
+      message: `📉 Precio: ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo máximo)\n` +
+        `📊 Momentum(${MOMENTUM_PERIOD}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más débil)\n` +
+        `⚠️ El impulso alcista se está agotando`,
+      tags: ['bar_chart', 'chart_with_downwards_trend'],
+      priority: 3,
+      click,
+    });
+    console.log(`  → Push divergencia bajista enviado para ${symbol}.`);
+  }
+
+  // Divergencia alcista: precio hace un mínimo más bajo, momentum más fuerte.
+  const bullishDivTime = divergence.bullish ? times[divergence.bullish.i2] : null;
+  const shouldAlertBullishDiv = bullishDivTime != null && bullishDivTime !== prev.lastBullishDivTime;
+  if (shouldAlertBullishDiv) {
+    const { i1, i2 } = divergence.bullish;
+    await sendPush({
+      title: `🔀 ${symbol} — Divergencia alcista (Momentum diario)`,
+      message: `📈 Precio: ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo mínimo)\n` +
+        `📊 Momentum(${MOMENTUM_PERIOD}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más fuerte)\n` +
+        `⚠️ La presión vendedora se está agotando`,
+      tags: ['bar_chart', 'chart_with_upwards_trend'],
+      priority: 3,
+      click,
+    });
+    console.log(`  → Push divergencia alcista enviado para ${symbol}.`);
+  }
+
+  state[symbol] = {
+    zone: currentZone,
+    rsi,
+    price: lastClose,
+    lastBearishDivTime: shouldAlertBearishDiv ? bearishDivTime : (prev.lastBearishDivTime ?? null),
+    lastBullishDivTime: shouldAlertBullishDiv ? bullishDivTime : (prev.lastBullishDivTime ?? null),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 async function main() {
@@ -135,8 +199,8 @@ async function main() {
 
   for (const symbol of STOCKS) {
     try {
-      const closes = await fetchYahooCloses(symbol);
-      await checkTicker(symbol, closes, state);
+      const { closes, times } = await fetchYahooCloses(symbol);
+      await checkTicker(symbol, closes, times, state);
     } catch (err) {
       console.error(`Error con ${symbol}: ${err.message}`);
     }
@@ -144,8 +208,8 @@ async function main() {
 
   for (const { symbol, product } of CRYPTOS) {
     try {
-      const closes = await fetchCoinbaseDailyCloses(product);
-      await checkTicker(symbol, closes, state);
+      const { closes, times } = await fetchCoinbaseDailyCloses(product);
+      await checkTicker(symbol, closes, times, state);
     } catch (err) {
       console.error(`Error con ${symbol} (${product}): ${err.message}`);
     }
