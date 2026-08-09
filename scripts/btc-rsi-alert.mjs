@@ -1,9 +1,13 @@
-// Chequea el RSI(14) de BTC en velas de 1h y manda un push por ntfy.sh
-// cuando el RSI toca la zona de sobrecompra (>=68) o sobreventa (<=32).
-// Mientras el RSI se mantenga fuera de rango, vuelve a avisar en cada
-// vela nueva (cada hora) — no solo al momento del cruce.
-// También calcula el POC (Point of Control) de volumen sobre las
-// últimas 24 velas de 1h y lo incluye en el mensaje.
+// Chequea el RSI(14) de BTC en velas de 1h (incluyendo la vela en curso,
+// para reaccionar en minutos) y manda un push por ntfy.sh cuando toca la
+// zona de sobrecompra (>=68) o sobreventa (<=32). Mientras el RSI se
+// mantenga fuera de rango, vuelve a avisar en cada vela nueva (cada hora)
+// — no solo al momento del cruce. También calcula el POC (Point of
+// Control) de volumen sobre las últimas 24 velas de 1h.
+//
+// Nota: como se evalúa la vela en formación, el RSI mostrado es "en vivo"
+// y puede variar hasta que cierre la hora (no es repintado histórico,
+// es el mismo comportamiento que un RSI intradía en TradingView).
 //
 // Requiere Node 20+ (fetch global) y la env var NTFY_TOPIC.
 
@@ -18,8 +22,11 @@ const RSI_OVERBOUGHT = 68;
 const RSI_OVERSOLD = 32;
 const POC_LOOKBACK_HOURS = 24;
 const POC_BINS = 50;
+const CHART_URL = 'https://www.tradingview.com/symbols/BTCUSD/';
 
 const STATE_PATH = path.join(process.cwd(), 'data', 'rsi-alert-state.json');
+
+const fmtUSD = (n) => `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
 // Perfil de volumen simple: reparte el volumen de cada vela de forma
 // pareja entre los bins de precio que cubre su rango [low, high], y
@@ -63,16 +70,10 @@ async function fetchHourlyCandles() {
     throw new Error(`Coinbase respondió ${res.status}: ${await res.text()}`);
   }
   // Cada vela: [time, low, high, open, close, volume] — viene de más nueva a más vieja.
+  // Se incluye la última vela aunque siga en formación: así el RSI
+  // refleja el precio en vivo en vez de esperar a que cierre la hora.
   const raw = await res.json();
-  const candles = raw.slice().sort((a, b) => a[0] - b[0]);
-
-  // Descartar la última vela si todavía está en formación (no cerró la hora).
-  const last = candles[candles.length - 1];
-  const nowSec = Date.now() / 1000;
-  if (last && last[0] + GRANULARITY > nowSec) {
-    candles.pop();
-  }
-  return candles;
+  return raw.slice().sort((a, b) => a[0] - b[0]);
 }
 
 async function loadState() {
@@ -95,14 +96,14 @@ function zoneFor(rsi) {
   return 'neutral';
 }
 
-async function sendPush({ title, message, tags, priority }) {
+async function sendPush({ title, message, tags, priority, click }) {
   const topic = process.env.NTFY_TOPIC;
   if (!topic) throw new Error('Falta la env var NTFY_TOPIC');
   const server = process.env.NTFY_SERVER || 'https://ntfy.sh';
   const res = await fetch(server, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic, title, message, tags, priority }),
+    body: JSON.stringify({ topic, title, message, tags, priority, click, markdown: true }),
   });
   if (!res.ok) {
     throw new Error(`ntfy respondió ${res.status}: ${await res.text()}`);
@@ -130,20 +131,27 @@ async function main() {
   );
 
   // Avisa mientras esté fuera de rango, una vez por vela (no repite si se
-  // re-ejecuta a mano dentro de la misma hora).
+  // re-ejecuta dentro de la misma hora ya avisada).
   const shouldAlert = currentZone !== 'neutral' && prevState.lastAlertCandleTime !== candleTime;
 
   if (shouldAlert) {
     const isOverbought = currentZone === 'overbought';
-    const estadoTxt = justEntered
-      ? `${isOverbought ? 'subió a' : 'bajó a'} ${rsi.toFixed(1)}`
-      : `sigue en ${isOverbought ? 'sobrecompra' : 'sobreventa'} hace ${hoursInZone}h (${rsi.toFixed(1)})`;
+    const threshold = isOverbought ? RSI_OVERBOUGHT : RSI_OVERSOLD;
+    const comparador = isOverbought ? '≥' : '≤';
+
+    let message = `📊 RSI(14): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n` +
+      `💰 Precio: **${fmtUSD(lastClose)}**\n` +
+      `🎯 POC 24h: ${fmtUSD(poc)}`;
+    if (!justEntered) {
+      message += `\n⏱ Hace ${hoursInZone}h en esta zona`;
+    }
+
     await sendPush({
-      title: isOverbought ? '🔴 BTC RSI 1h — Sobrecompra' : '🟢 BTC RSI 1h — Sobreventa',
-      message: `RSI(14) en 1h ${estadoTxt} (umbral ${isOverbought ? RSI_OVERBOUGHT : RSI_OVERSOLD}). ` +
-        `Precio BTC: $${lastClose.toFixed(2)} · POC 24h: $${poc.toFixed(2)}`,
+      title: isOverbought ? '🔴 BTC — Sobrecompra (RSI 1h)' : '🟢 BTC — Sobreventa (RSI 1h)',
+      message,
       tags: isOverbought ? ['rotating_light', 'chart_with_upwards_trend'] : ['rotating_light', 'chart_with_downwards_trend'],
       priority: 4,
+      click: CHART_URL,
     });
     console.log('Push enviado.');
   }
