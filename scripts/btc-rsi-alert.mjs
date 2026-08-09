@@ -10,6 +10,13 @@
 // alcista: precio hace un mínimo más bajo con momentum más fuerte) y
 // manda un tipo de notificación aparte (🔀) cuando aparece una nueva.
 //
+// Un tercer tipo de notificación (🎯 Señal fuerte) dispara cuando una
+// divergencia coincide con el RSI en la zona extrema correspondiente:
+// eso es la combinación más confiable de reversión (bajista+sobrecompra
+// o alcista+sobreventa).
+//
+// Todo esto es sobre la temporalidad de 1h (velas horarias de BTC-USD).
+//
 // Nota: como se evalúa la vela en formación, el RSI mostrado es "en vivo"
 // y puede variar hasta que cierre la hora (no es repintado histórico,
 // es el mismo comportamiento que un RSI intradía en TradingView).
@@ -22,6 +29,7 @@ import { computeRSI, computeMomentum, detectDivergence } from './lib/indicators.
 
 const PRODUCT = 'BTC-USD';
 const GRANULARITY = 3600; // 1h, en segundos
+const TIMEFRAME = '1h';
 const RSI_PERIOD = 14;
 const RSI_OVERBOUGHT = 68;
 const RSI_OVERSOLD = 32;
@@ -94,6 +102,8 @@ async function loadState() {
       lastAlertCandleTime: null,
       lastBearishDivTime: null,
       lastBullishDivTime: null,
+      lastBearishConfluenceTime: null,
+      lastBullishConfluenceTime: null,
       rsi: null,
       poc: null,
       updatedAt: null,
@@ -144,13 +154,13 @@ async function main() {
   const hoursInZone = Math.max(0, Math.round((candleTime - zoneSince) / GRANULARITY));
 
   console.log(
-    `BTC 1h — precio: $${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · ` +
+    `BTC ${TIMEFRAME} — precio: $${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · ` +
       `POC(24h): $${poc.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone}, hace ${hoursInZone}h) · ` +
       `divergencia: bajista=${divergence.bearish ? 'sí' : 'no'} alcista=${divergence.bullish ? 'sí' : 'no'}`
   );
 
-  // Avisa mientras esté fuera de rango, una vez por vela (no repite si se
-  // re-ejecuta dentro de la misma hora ya avisada).
+  // 1) RSI: avisa mientras esté fuera de rango, una vez por vela (no
+  // repite si se re-ejecuta dentro de la misma hora ya avisada).
   const shouldAlertRSI = currentZone !== 'neutral' && prevState.lastAlertCandleTime !== candleTime;
 
   if (shouldAlertRSI) {
@@ -158,7 +168,7 @@ async function main() {
     const threshold = isOverbought ? RSI_OVERBOUGHT : RSI_OVERSOLD;
     const comparador = isOverbought ? '≥' : '≤';
 
-    let message = `📊 RSI(14): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n` +
+    let message = `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n` +
       `💰 Precio: **${fmtUSD(lastClose)}**\n` +
       `🎯 POC 24h: ${fmtUSD(poc)}`;
     if (!justEntered) {
@@ -166,7 +176,7 @@ async function main() {
     }
 
     await sendPush({
-      title: isOverbought ? '🔴 BTC — Sobrecompra (RSI 1h)' : '🟢 BTC — Sobreventa (RSI 1h)',
+      title: isOverbought ? `🔴 BTC — Sobrecompra (RSI ${TIMEFRAME})` : `🟢 BTC — Sobreventa (RSI ${TIMEFRAME})`,
       message,
       tags: isOverbought ? ['rotating_light', 'chart_with_upwards_trend'] : ['rotating_light', 'chart_with_downwards_trend'],
       priority: 4,
@@ -175,15 +185,15 @@ async function main() {
     console.log('Push RSI enviado.');
   }
 
-  // Divergencia bajista: precio hace un máximo más alto, momentum más débil.
+  // 2) Divergencia bajista: precio hace un máximo más alto, momentum más débil.
   const bearishDivTime = divergence.bearish ? candles[divergence.bearish.i2][0] : null;
   const shouldAlertBearishDiv = bearishDivTime !== null && bearishDivTime !== prevState.lastBearishDivTime;
   if (shouldAlertBearishDiv) {
     const { i1, i2 } = divergence.bearish;
     await sendPush({
-      title: '🔀 BTC — Divergencia bajista (Momentum)',
-      message: `📉 Precio: ${fmtUSD(closes[i1])} → **${fmtUSD(closes[i2])}** (nuevo máximo)\n` +
-        `📊 Momentum(${MOMENTUM_PERIOD}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más débil)\n` +
+      title: `🔀 BTC — Divergencia bajista (Momentum ${TIMEFRAME})`,
+      message: `📉 Precio (${TIMEFRAME}): ${fmtUSD(closes[i1])} → **${fmtUSD(closes[i2])}** (nuevo máximo)\n` +
+        `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más débil)\n` +
         `⚠️ El impulso alcista se está agotando`,
       tags: ['bar_chart', 'chart_with_downwards_trend'],
       priority: 3,
@@ -192,15 +202,15 @@ async function main() {
     console.log('Push divergencia bajista enviado.');
   }
 
-  // Divergencia alcista: precio hace un mínimo más bajo, momentum más fuerte.
+  // 3) Divergencia alcista: precio hace un mínimo más bajo, momentum más fuerte.
   const bullishDivTime = divergence.bullish ? candles[divergence.bullish.i2][0] : null;
   const shouldAlertBullishDiv = bullishDivTime !== null && bullishDivTime !== prevState.lastBullishDivTime;
   if (shouldAlertBullishDiv) {
     const { i1, i2 } = divergence.bullish;
     await sendPush({
-      title: '🔀 BTC — Divergencia alcista (Momentum)',
-      message: `📈 Precio: ${fmtUSD(closes[i1])} → **${fmtUSD(closes[i2])}** (nuevo mínimo)\n` +
-        `📊 Momentum(${MOMENTUM_PERIOD}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más fuerte)\n` +
+      title: `🔀 BTC — Divergencia alcista (Momentum ${TIMEFRAME})`,
+      message: `📈 Precio (${TIMEFRAME}): ${fmtUSD(closes[i1])} → **${fmtUSD(closes[i2])}** (nuevo mínimo)\n` +
+        `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más fuerte)\n` +
         `⚠️ La presión vendedora se está agotando`,
       tags: ['bar_chart', 'chart_with_upwards_trend'],
       priority: 3,
@@ -209,12 +219,60 @@ async function main() {
     console.log('Push divergencia alcista enviado.');
   }
 
+  // 4) Señal combinada: divergencia + RSI en la zona extrema correspondiente
+  // al mismo tiempo. Es la lectura clásica de mayor confiabilidad.
+  // Se deduplica por separado (por pivote), independiente de si la
+  // divergencia "simple" ya avisó en un run anterior.
+  const bearishConfluenceTime =
+    divergence.bearish && currentZone === 'overbought' ? candles[divergence.bearish.i2][0] : null;
+  const shouldAlertBearishConfluence =
+    bearishConfluenceTime !== null && bearishConfluenceTime !== prevState.lastBearishConfluenceTime;
+  if (shouldAlertBearishConfluence) {
+    const { i1, i2 } = divergence.bearish;
+    await sendPush({
+      title: `🎯 BTC — Señal fuerte: Divergencia + Sobrecompra (${TIMEFRAME})`,
+      message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobrecompra, ≥ ${RSI_OVERBOUGHT})\n` +
+        `📉 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más débil en el nuevo máximo: ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}**\n` +
+        `💰 Precio: **${fmtUSD(lastClose)}**\n` +
+        `⚠️ Divergencia bajista + RSI en zona extrema → señal más confiable de posible reversión a la baja`,
+      tags: ['rotating_light', 'triangular_flag_on_post'],
+      priority: 5,
+      click: CHART_URL,
+    });
+    console.log('Push señal combinada bajista enviado.');
+  }
+
+  const bullishConfluenceTime =
+    divergence.bullish && currentZone === 'oversold' ? candles[divergence.bullish.i2][0] : null;
+  const shouldAlertBullishConfluence =
+    bullishConfluenceTime !== null && bullishConfluenceTime !== prevState.lastBullishConfluenceTime;
+  if (shouldAlertBullishConfluence) {
+    const { i1, i2 } = divergence.bullish;
+    await sendPush({
+      title: `🎯 BTC — Señal fuerte: Divergencia + Sobreventa (${TIMEFRAME})`,
+      message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobreventa, ≤ ${RSI_OVERSOLD})\n` +
+        `📈 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más fuerte en el nuevo mínimo: ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}**\n` +
+        `💰 Precio: **${fmtUSD(lastClose)}**\n` +
+        `⚠️ Divergencia alcista + RSI en zona extrema → señal más confiable de posible reversión al alza`,
+      tags: ['rotating_light', 'triangular_flag_on_post'],
+      priority: 5,
+      click: CHART_URL,
+    });
+    console.log('Push señal combinada alcista enviado.');
+  }
+
   await saveState({
     zone: currentZone,
     zoneSince: currentZone === 'neutral' ? null : zoneSince,
     lastAlertCandleTime: shouldAlertRSI ? candleTime : prevState.lastAlertCandleTime,
     lastBearishDivTime: shouldAlertBearishDiv ? bearishDivTime : (prevState.lastBearishDivTime ?? null),
     lastBullishDivTime: shouldAlertBullishDiv ? bullishDivTime : (prevState.lastBullishDivTime ?? null),
+    lastBearishConfluenceTime: shouldAlertBearishConfluence
+      ? bearishConfluenceTime
+      : (prevState.lastBearishConfluenceTime ?? null),
+    lastBullishConfluenceTime: shouldAlertBullishConfluence
+      ? bullishConfluenceTime
+      : (prevState.lastBullishConfluenceTime ?? null),
     rsi,
     poc,
     updatedAt: new Date().toISOString(),
