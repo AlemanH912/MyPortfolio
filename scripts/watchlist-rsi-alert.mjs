@@ -11,12 +11,19 @@
 // alcista: precio hace un mínimo más bajo con momentum más fuerte) y
 // manda un tipo de notificación aparte (🔀) cuando aparece una nueva.
 //
+// Un tercer tipo de notificación (🎯 Señal fuerte) dispara cuando una
+// divergencia coincide con el RSI en la zona extrema correspondiente:
+// la combinación más confiable de reversión.
+//
+// Todo esto es sobre la temporalidad DIARIA (velas de 1 día).
+//
 // Requiere Node 20+ (fetch global) y la env var NTFY_TOPIC.
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { computeRSI, computeMomentum, detectDivergence } from './lib/indicators.mjs';
 
+const TIMEFRAME = 'diario';
 const RSI_PERIOD = 14;
 const RSI_OVERBOUGHT = 70;
 const RSI_OVERSOLD = 30;
@@ -131,18 +138,19 @@ async function checkTicker(symbol, closes, times, state) {
   const justEntered = currentZone !== 'neutral' && currentZone !== prevZone;
 
   console.log(
-    `${symbol} diario — precio: ${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone}) · ` +
+    `${symbol} ${TIMEFRAME} — precio: ${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone}) · ` +
       `divergencia: bajista=${divergence.bearish ? 'sí' : 'no'} alcista=${divergence.bullish ? 'sí' : 'no'}`
   );
 
+  // 1) RSI
   if (justEntered) {
     const isOverbought = currentZone === 'overbought';
     const threshold = isOverbought ? RSI_OVERBOUGHT : RSI_OVERSOLD;
     const comparador = isOverbought ? '≥' : '≤';
 
     await sendPush({
-      title: isOverbought ? `🔴 ${symbol} — Sobrecompra (RSI diario)` : `🟢 ${symbol} — Sobreventa (RSI diario)`,
-      message: `📊 RSI(14): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n💰 Precio: **${fmt(lastClose)}**`,
+      title: isOverbought ? `🔴 ${symbol} — Sobrecompra (RSI ${TIMEFRAME})` : `🟢 ${symbol} — Sobreventa (RSI ${TIMEFRAME})`,
+      message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n💰 Precio: **${fmt(lastClose)}**`,
       tags: isOverbought ? ['rotating_light', 'chart_with_upwards_trend'] : ['rotating_light', 'chart_with_downwards_trend'],
       priority: 4,
       click,
@@ -150,15 +158,15 @@ async function checkTicker(symbol, closes, times, state) {
     console.log(`  → Push RSI enviado para ${symbol}.`);
   }
 
-  // Divergencia bajista: precio hace un máximo más alto, momentum más débil.
+  // 2) Divergencia bajista: precio hace un máximo más alto, momentum más débil.
   const bearishDivTime = divergence.bearish ? times[divergence.bearish.i2] : null;
   const shouldAlertBearishDiv = bearishDivTime != null && bearishDivTime !== prev.lastBearishDivTime;
   if (shouldAlertBearishDiv) {
     const { i1, i2 } = divergence.bearish;
     await sendPush({
-      title: `🔀 ${symbol} — Divergencia bajista (Momentum diario)`,
-      message: `📉 Precio: ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo máximo)\n` +
-        `📊 Momentum(${MOMENTUM_PERIOD}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más débil)\n` +
+      title: `🔀 ${symbol} — Divergencia bajista (Momentum ${TIMEFRAME})`,
+      message: `📉 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo máximo)\n` +
+        `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más débil)\n` +
         `⚠️ El impulso alcista se está agotando`,
       tags: ['bar_chart', 'chart_with_downwards_trend'],
       priority: 3,
@@ -167,15 +175,15 @@ async function checkTicker(symbol, closes, times, state) {
     console.log(`  → Push divergencia bajista enviado para ${symbol}.`);
   }
 
-  // Divergencia alcista: precio hace un mínimo más bajo, momentum más fuerte.
+  // 3) Divergencia alcista: precio hace un mínimo más bajo, momentum más fuerte.
   const bullishDivTime = divergence.bullish ? times[divergence.bullish.i2] : null;
   const shouldAlertBullishDiv = bullishDivTime != null && bullishDivTime !== prev.lastBullishDivTime;
   if (shouldAlertBullishDiv) {
     const { i1, i2 } = divergence.bullish;
     await sendPush({
-      title: `🔀 ${symbol} — Divergencia alcista (Momentum diario)`,
-      message: `📈 Precio: ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo mínimo)\n` +
-        `📊 Momentum(${MOMENTUM_PERIOD}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más fuerte)\n` +
+      title: `🔀 ${symbol} — Divergencia alcista (Momentum ${TIMEFRAME})`,
+      message: `📈 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo mínimo)\n` +
+        `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más fuerte)\n` +
         `⚠️ La presión vendedora se está agotando`,
       tags: ['bar_chart', 'chart_with_upwards_trend'],
       priority: 3,
@@ -184,12 +192,57 @@ async function checkTicker(symbol, closes, times, state) {
     console.log(`  → Push divergencia alcista enviado para ${symbol}.`);
   }
 
+  // 4) Señal combinada: divergencia + RSI en la zona extrema correspondiente.
+  const bearishConfluenceTime =
+    divergence.bearish && currentZone === 'overbought' ? times[divergence.bearish.i2] : null;
+  const shouldAlertBearishConfluence =
+    bearishConfluenceTime != null && bearishConfluenceTime !== prev.lastBearishConfluenceTime;
+  if (shouldAlertBearishConfluence) {
+    const { i1, i2 } = divergence.bearish;
+    await sendPush({
+      title: `🎯 ${symbol} — Señal fuerte: Divergencia + Sobrecompra (${TIMEFRAME})`,
+      message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobrecompra, ≥ ${RSI_OVERBOUGHT})\n` +
+        `📉 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más débil en el nuevo máximo: ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}**\n` +
+        `💰 Precio: **${fmt(lastClose)}**\n` +
+        `⚠️ Divergencia bajista + RSI en zona extrema → señal más confiable de posible reversión a la baja`,
+      tags: ['rotating_light', 'triangular_flag_on_post'],
+      priority: 5,
+      click,
+    });
+    console.log(`  → Push señal combinada bajista enviado para ${symbol}.`);
+  }
+
+  const bullishConfluenceTime =
+    divergence.bullish && currentZone === 'oversold' ? times[divergence.bullish.i2] : null;
+  const shouldAlertBullishConfluence =
+    bullishConfluenceTime != null && bullishConfluenceTime !== prev.lastBullishConfluenceTime;
+  if (shouldAlertBullishConfluence) {
+    const { i1, i2 } = divergence.bullish;
+    await sendPush({
+      title: `🎯 ${symbol} — Señal fuerte: Divergencia + Sobreventa (${TIMEFRAME})`,
+      message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobreventa, ≤ ${RSI_OVERSOLD})\n` +
+        `📈 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más fuerte en el nuevo mínimo: ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}**\n` +
+        `💰 Precio: **${fmt(lastClose)}**\n` +
+        `⚠️ Divergencia alcista + RSI en zona extrema → señal más confiable de posible reversión al alza`,
+      tags: ['rotating_light', 'triangular_flag_on_post'],
+      priority: 5,
+      click,
+    });
+    console.log(`  → Push señal combinada alcista enviado para ${symbol}.`);
+  }
+
   state[symbol] = {
     zone: currentZone,
     rsi,
     price: lastClose,
     lastBearishDivTime: shouldAlertBearishDiv ? bearishDivTime : (prev.lastBearishDivTime ?? null),
     lastBullishDivTime: shouldAlertBullishDiv ? bullishDivTime : (prev.lastBullishDivTime ?? null),
+    lastBearishConfluenceTime: shouldAlertBearishConfluence
+      ? bearishConfluenceTime
+      : (prev.lastBearishConfluenceTime ?? null),
+    lastBullishConfluenceTime: shouldAlertBullishConfluence
+      ? bullishConfluenceTime
+      : (prev.lastBullishConfluenceTime ?? null),
     updatedAt: new Date().toISOString(),
   };
 }
