@@ -1,192 +1,192 @@
 {
   "ETH": {
     "zone": "neutral",
-    "rsi": 49.70696942225668,
-    "price": 1871.44,
+    "rsi": 51.069716927012244,
+    "price": 1880.72,
     "lastBearishDivTime": 1785024000,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:08.173Z"
+    "updatedAt": "2026-08-12T22:12:17.187Z"
   },
   "BTC": {
     "zone": "neutral",
-    "rsi": 48.37832151944547,
-    "price": 63911.88,
+    "rsi": 46.19728794264132,
+    "price": 63531.75,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:08.214Z"
+    "updatedAt": "2026-08-12T22:12:17.199Z"
   },
   "BMA": {
     "zone": "neutral",
-    "rsi": 35.59605509302307,
-    "price": 80.4000015258789,
-    "lastBearishDivTime": null,
+    "rsi": 34.15326544932033,
+    "price": 79.80000305175781,
+    "lastBearishDivTime": 1785418200,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:06.523Z"
+    "updatedAt": "2026-08-12T22:12:15.947Z"
   },
   "PAM": {
     "zone": "neutral",
-    "rsi": 37.303056831811695,
-    "price": 79.80999755859375,
+    "rsi": 38.664231589585995,
+    "price": 79.41000366210938,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:06.596Z"
+    "updatedAt": "2026-08-12T22:12:16.029Z"
   },
   "MELI": {
     "zone": "neutral",
-    "rsi": 64.12578284883446,
-    "price": 1940,
+    "rsi": 50.37072444732845,
+    "price": 1828.2900390625,
     "lastBearishDivTime": 1785936600,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:06.676Z"
+    "updatedAt": "2026-08-12T22:12:16.092Z"
   },
   "BIDU": {
     "zone": "neutral",
-    "rsi": 40.370906615039495,
-    "price": 105.94000244140625,
+    "rsi": 39.20333487961492,
+    "price": 104.83999633789062,
     "lastBearishDivTime": null,
     "lastBullishDivTime": 1785245400,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:06.742Z"
+    "updatedAt": "2026-08-12T22:12:16.151Z"
   },
   "MSFT": {
     "zone": "overbought",
-    "rsi": 77.71674912629923,
-    "price": 503.80999755859375,
+    "rsi": 70.77914914222168,
+    "price": 492.42999267578125,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:06.855Z"
+    "updatedAt": "2026-08-12T22:12:16.259Z"
   },
   "YPF": {
     "zone": "neutral",
-    "rsi": 47.289090729582064,
-    "price": 49.150001525878906,
+    "rsi": 46.86948582016546,
+    "price": 48.900001525878906,
     "lastBearishDivTime": 1785504600,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.007Z"
+    "updatedAt": "2026-08-12T22:12:16.334Z"
   },
   "SUPV": {
     "zone": "neutral",
-    "rsi": 36.43475490376308,
-    "price": 8.369999885559082,
+    "rsi": 35.60432724637798,
+    "price": 8.279999732971191,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.086Z"
+    "updatedAt": "2026-08-12T22:12:16.397Z"
   },
   "TGS": {
     "zone": "neutral",
-    "rsi": 38.09113455605208,
-    "price": 28.040000915527344,
+    "rsi": 38.53229270208444,
+    "price": 28.100000381469727,
     "lastBearishDivTime": 1785504600,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.175Z"
+    "updatedAt": "2026-08-12T22:12:16.468Z"
   },
   "UBER": {
     "zone": "neutral",
-    "rsi": 63.8924100388996,
-    "price": 78.54000091552734,
+    "rsi": 55.8567964301541,
+    "price": 75.36000061035156,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.241Z"
+    "updatedAt": "2026-08-12T22:12:16.510Z"
   },
   "GGAL": {
     "zone": "neutral",
-    "rsi": 36.186489515481576,
-    "price": 44.529998779296875,
+    "rsi": 34.46520113330365,
+    "price": 44.220001220703125,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.333Z"
+    "updatedAt": "2026-08-12T22:12:16.612Z"
   },
   "TSLA": {
     "zone": "neutral",
-    "rsi": 43.4926992499971,
-    "price": 332.80999755859375,
+    "rsi": 41.422439639672525,
+    "price": 327.510009765625,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.400Z"
+    "updatedAt": "2026-08-12T22:12:16.688Z"
   },
   "AMD": {
     "zone": "neutral",
-    "rsi": 45.631480676827366,
-    "price": 474.32000732421875,
+    "rsi": 47.3905942992634,
+    "price": 482.92999267578125,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.468Z"
+    "updatedAt": "2026-08-12T22:12:16.754Z"
   },
   "BABA": {
     "zone": "neutral",
-    "rsi": 62.46357427830904,
-    "price": 127.8499984741211,
+    "rsi": 57.742356553306436,
+    "price": 125.22000122070312,
     "lastBearishDivTime": 1785850200,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": 1785850200,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.546Z"
+    "updatedAt": "2026-08-12T22:12:16.814Z"
   },
   "AAPL": {
     "zone": "neutral",
-    "rsi": 41.92036358233291,
-    "price": 304.9100036621094,
+    "rsi": 40.21963658245151,
+    "price": 302.25,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.740Z"
+    "updatedAt": "2026-08-12T22:12:16.893Z"
   },
   "INTC": {
     "zone": "neutral",
-    "rsi": 46.71795191946161,
-    "price": 97.70999908447266,
+    "rsi": 49.98316855658862,
+    "price": 100.94999694824219,
     "lastBearishDivTime": null,
     "lastBullishDivTime": 1785331800,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.850Z"
+    "updatedAt": "2026-08-12T22:12:16.971Z"
   },
   "TS": {
     "zone": "neutral",
-    "rsi": 38.922572609100484,
-    "price": 53.439998626708984,
-    "lastBearishDivTime": null,
+    "rsi": 38.376104503333096,
+    "price": 53.150001525878906,
+    "lastBearishDivTime": 1785850200,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:07.939Z"
+    "updatedAt": "2026-08-12T22:12:17.063Z"
   },
   "NVDA": {
     "zone": "neutral",
-    "rsi": 58.01270244338504,
-    "price": 217.5,
+    "rsi": 62.42811895269832,
+    "price": 224.08999633789062,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-08-11T22:20:08.034Z"
+    "updatedAt": "2026-08-12T22:12:17.111Z"
   }
 }
