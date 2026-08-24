@@ -33,6 +33,13 @@ export function computeMomentum(closes, period = 10) {
   return momentum;
 }
 
+// Media móvil simple de los últimos `period` cierres.
+export function computeSMA(closes, period = 20) {
+  if (closes.length < period) return null;
+  const window = closes.slice(-period);
+  return window.reduce((a, b) => a + b, 0) / period;
+}
+
 export function findPivotHighs(values, lookback = 3) {
   const pivots = [];
   for (let i = lookback; i < values.length - lookback; i++) {
