@@ -40,6 +40,31 @@ export function computeSMA(closes, period = 20) {
   return window.reduce((a, b) => a + b, 0) / period;
 }
 
+// ATR (Average True Range) de Wilder. `candles` en formato
+// [time, low, high, open, close, volume], orden ascendente.
+export function computeATR(candles, period = 14) {
+  if (candles.length < period + 1) return null;
+  const trueRanges = [];
+  for (let i = 1; i < candles.length; i++) {
+    const [, low, high] = candles[i];
+    const prevClose = candles[i - 1][4];
+    trueRanges.push(Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose)));
+  }
+  let atr = trueRanges.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < trueRanges.length; i++) {
+    atr = (atr * (period - 1) + trueRanges[i]) / period;
+  }
+  return atr;
+}
+
+// Nivel de stop-loss y target dado un precio de referencia, un stop
+// (estructural o por ATR) y un múltiplo de riesgo:beneficio (R).
+export function tradeLevels(price, stop, isBearish, rMultiple = 2) {
+  const risk = Math.abs(price - stop);
+  const target = isBearish ? price - rMultiple * risk : price + rMultiple * risk;
+  return { stop, target, risk, rMultiple };
+}
+
 export function findPivotHighs(values, lookback = 3) {
   const pivots = [];
   for (let i = lookback; i < values.length - lookback; i++) {
