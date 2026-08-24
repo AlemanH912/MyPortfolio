@@ -15,13 +15,16 @@
 // divergencia coincide con el RSI en la zona extrema correspondiente:
 // la combinación más confiable de reversión.
 //
-// Todo esto es sobre la temporalidad DIARIA (velas de 1 día).
+// Todo esto es sobre la temporalidad DIARIA (velas de 1 día). El link a
+// TradingView va como texto al final del mensaje (no como acción de
+// tocar la notificación), para no navegar por accidente al solo
+// querer leerla.
 //
 // Requiere Node 20+ (fetch global) y la env var NTFY_TOPIC.
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { computeRSI, computeMomentum, detectDivergence } from './lib/indicators.mjs';
+import { computeRSI, computeMomentum, computeSMA, detectDivergence } from './lib/indicators.mjs';
 
 const TIMEFRAME = 'diario';
 const RSI_PERIOD = 14;
@@ -29,6 +32,7 @@ const RSI_OVERBOUGHT = 70;
 const RSI_OVERSOLD = 30;
 const MOMENTUM_PERIOD = 10;
 const PIVOT_LOOKBACK = 3;
+const SMA_PERIOD = 20;
 
 const STATE_PATH = path.join(process.cwd(), 'data', 'watchlist-rsi-state.json');
 
@@ -47,8 +51,13 @@ const CRYPTOS = [
   { symbol: 'BTC', product: 'BTC-USD' },
 ];
 
-function chartUrlFor(symbol) {
-  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+// Símbolo de TradingView para el link "de chart" (la misma URL que genera
+// su propio botón de compartir): en el celu, si tenés la app instalada,
+// este link la abre directo en vez del navegador.
+const TV_SYMBOL_OVERRIDES = { ETH: 'COINBASE:ETHUSD', BTC: 'COINBASE:BTCUSD' };
+function chartLinkFor(symbol) {
+  const tvSymbol = TV_SYMBOL_OVERRIDES[symbol] || symbol;
+  return `🔗 [Ver gráfico en TradingView](https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)})`;
 }
 
 async function fetchYahooCloses(symbol) {
@@ -111,14 +120,15 @@ function zoneFor(rsi) {
   return 'neutral';
 }
 
-async function sendPush({ title, message, tags, priority, click }) {
+async function sendPush({ title, message, tags, priority }) {
   const topic = process.env.NTFY_TOPIC;
   if (!topic) throw new Error('Falta la env var NTFY_TOPIC');
   const server = process.env.NTFY_SERVER || 'https://ntfy.sh';
   const res = await fetch(server, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic, title, message, tags, priority, click, markdown: true }),
+    // Sin "click": tocar la notificación solo la abre/expande, no navega.
+    body: JSON.stringify({ topic, title, message, tags, priority, markdown: true }),
   });
   if (!res.ok) {
     throw new Error(`ntfy respondió ${res.status}: ${await res.text()}`);
@@ -128,17 +138,20 @@ async function sendPush({ title, message, tags, priority, click }) {
 async function checkTicker(symbol, closes, times, state) {
   const lastClose = closes[closes.length - 1];
   const rsi = computeRSI(closes, RSI_PERIOD);
+  const sma20 = computeSMA(closes, SMA_PERIOD);
   const momentum = computeMomentum(closes, MOMENTUM_PERIOD);
   const divergence = detectDivergence(closes, momentum, PIVOT_LOOKBACK);
   const currentZone = zoneFor(rsi);
-  const click = chartUrlFor(symbol);
+  const link = chartLinkFor(symbol);
+  const smaLine = sma20 != null ? `📏 Media(${SMA_PERIOD}, ${TIMEFRAME}): **${fmt(sma20)}**\n` : '';
 
   const prev = state[symbol] || {};
   const prevZone = prev.zone || 'neutral';
   const justEntered = currentZone !== 'neutral' && currentZone !== prevZone;
 
   console.log(
-    `${symbol} ${TIMEFRAME} — precio: ${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · zona: ${currentZone} (antes: ${prevZone}) · ` +
+    `${symbol} ${TIMEFRAME} — precio: ${lastClose.toFixed(2)} · RSI(14): ${rsi.toFixed(2)} · ` +
+      `Media(${SMA_PERIOD}): ${sma20 != null ? sma20.toFixed(2) : 'N/D'} · zona: ${currentZone} (antes: ${prevZone}) · ` +
       `divergencia: bajista=${divergence.bearish ? 'sí' : 'no'} alcista=${divergence.bullish ? 'sí' : 'no'}`
   );
 
@@ -150,10 +163,12 @@ async function checkTicker(symbol, closes, times, state) {
 
     await sendPush({
       title: isOverbought ? `🔴 ${symbol} — Sobrecompra (RSI ${TIMEFRAME})` : `🟢 ${symbol} — Sobreventa (RSI ${TIMEFRAME})`,
-      message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n💰 Precio: **${fmt(lastClose)}**`,
+      message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n` +
+        `💰 Precio: **${fmt(lastClose)}**\n` +
+        smaLine +
+        `\n${link}`,
       tags: isOverbought ? ['rotating_light', 'chart_with_upwards_trend'] : ['rotating_light', 'chart_with_downwards_trend'],
       priority: 4,
-      click,
     });
     console.log(`  → Push RSI enviado para ${symbol}.`);
   }
@@ -167,10 +182,10 @@ async function checkTicker(symbol, closes, times, state) {
       title: `🔀 ${symbol} — Divergencia bajista (Momentum ${TIMEFRAME})`,
       message: `📉 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo máximo)\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más débil)\n` +
-        `⚠️ El impulso alcista se está agotando`,
+        smaLine +
+        `⚠️ El impulso alcista se está agotando\n\n${link}`,
       tags: ['bar_chart', 'chart_with_downwards_trend'],
       priority: 3,
-      click,
     });
     console.log(`  → Push divergencia bajista enviado para ${symbol}.`);
   }
@@ -184,10 +199,10 @@ async function checkTicker(symbol, closes, times, state) {
       title: `🔀 ${symbol} — Divergencia alcista (Momentum ${TIMEFRAME})`,
       message: `📈 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo mínimo)\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más fuerte)\n` +
-        `⚠️ La presión vendedora se está agotando`,
+        smaLine +
+        `⚠️ La presión vendedora se está agotando\n\n${link}`,
       tags: ['bar_chart', 'chart_with_upwards_trend'],
       priority: 3,
-      click,
     });
     console.log(`  → Push divergencia alcista enviado para ${symbol}.`);
   }
@@ -204,10 +219,10 @@ async function checkTicker(symbol, closes, times, state) {
       message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobrecompra, ≥ ${RSI_OVERBOUGHT})\n` +
         `📉 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más débil en el nuevo máximo: ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}**\n` +
         `💰 Precio: **${fmt(lastClose)}**\n` +
-        `⚠️ Divergencia bajista + RSI en zona extrema → señal más confiable de posible reversión a la baja`,
+        smaLine +
+        `⚠️ Divergencia bajista + RSI en zona extrema → señal más confiable de posible reversión a la baja\n\n${link}`,
       tags: ['rotating_light', 'triangular_flag_on_post'],
       priority: 5,
-      click,
     });
     console.log(`  → Push señal combinada bajista enviado para ${symbol}.`);
   }
@@ -223,10 +238,10 @@ async function checkTicker(symbol, closes, times, state) {
       message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobreventa, ≤ ${RSI_OVERSOLD})\n` +
         `📈 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más fuerte en el nuevo mínimo: ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}**\n` +
         `💰 Precio: **${fmt(lastClose)}**\n` +
-        `⚠️ Divergencia alcista + RSI en zona extrema → señal más confiable de posible reversión al alza`,
+        smaLine +
+        `⚠️ Divergencia alcista + RSI en zona extrema → señal más confiable de posible reversión al alza\n\n${link}`,
       tags: ['rotating_light', 'triangular_flag_on_post'],
       priority: 5,
-      click,
     });
     console.log(`  → Push señal combinada alcista enviado para ${symbol}.`);
   }
