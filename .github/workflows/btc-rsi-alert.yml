@@ -1,4 +1,4 @@
-name: BTC RSI 1h Alert
+name: Cripto RSI 1h Alert (BTC + ETH)
 
 on:
   schedule:
@@ -23,18 +23,23 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Chequear RSI y notificar si corresponde
+      - name: Chequear RSI de BTC y notificar si corresponde
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: node scripts/btc-rsi-alert.mjs
 
+      - name: Chequear RSI de ETH y notificar si corresponde
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: node scripts/eth-rsi-alert.mjs
+
       - name: Guardar estado si cambió
         run: |
-          if ! git diff --quiet -- data/rsi-alert-state.json; then
+          if ! git diff --quiet -- data/rsi-alert-state.json data/eth-rsi-alert-state.json; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add data/rsi-alert-state.json
-            git commit -m "chore: actualizar estado de alerta RSI BTC"
+            git add data/rsi-alert-state.json data/eth-rsi-alert-state.json
+            git commit -m "chore: actualizar estado de alerta RSI BTC/ETH"
             git push
           else
             echo "Sin cambios de estado."
