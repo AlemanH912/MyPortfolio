@@ -118,7 +118,7 @@ html,body{height:100%;background:var(--navy);color:var(--text);font-family:'Inte
 
 /* table overrides for light theme */
 .main th{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08)}
-.main td{border-color:rgba(0,0,0,.07)}
+.main td{border-color:rgba(0,0,0,.07);color:#374151}
 .main tbody tr:hover td{background:rgba(0,0,0,.025)}
 .main .xl-table th{background:#e8edf6;color:var(--text3);border-color:rgba(0,0,0,.1)}
 .main .xl-table td{border-color:rgba(0,0,0,.07);color:var(--text)}
@@ -1884,7 +1884,7 @@ function renderCharts() {
       labels:catKeys,
       datasets:[{ data:catKeys.map(k=>cats[k].val),
         backgroundColor:catKeys.map(k=>CAT_COLORS[k]||'#8b5cf6'),
-        borderWidth:2, borderColor:'#0d1428' }]
+        borderWidth:0 }]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
@@ -1929,7 +1929,7 @@ function renderDistChart(canvasId, entries) {
       datasets:[{
         data:values,
         backgroundColor:DIST_COLORS.slice(0,labels.length),
-        borderWidth:2,borderColor:'#0d1428',
+        borderWidth:0,
       }]
     },
     options:{
@@ -3376,7 +3376,7 @@ function initAhorroProyeccion() {
   const saldoEl = document.getElementById('ah-saldo');
   const paBase  = document.getElementById('pa-base');
   if (saldoEl && paBase && !paBase.value) {
-    const saldoNum = parseFloat(saldoEl.textContent.replace(/[$.,]/g,'').replace(',','.'))||0;
+    const saldoNum = parsePrice(saldoEl.textContent)||0;
     if (saldoNum > 0) paBase.value = Math.round(saldoNum);
   }
   calcAhorroProyeccion();
