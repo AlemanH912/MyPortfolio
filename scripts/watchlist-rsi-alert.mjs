@@ -9,11 +9,12 @@
 // También detecta divergencias entre el precio y el Momentum Oscillator
 // diario (bajista: precio hace un máximo más alto con momentum más débil;
 // alcista: precio hace un mínimo más bajo con momentum más fuerte) y
-// manda un tipo de notificación aparte (🔀) cuando aparece una nueva.
+// manda un tipo de notificación aparte cuando aparece una nueva.
 //
 // Un tercer tipo de notificación (🎯 Señal fuerte) dispara cuando una
 // divergencia coincide con el RSI en la zona extrema correspondiente:
-// la combinación más confiable de reversión.
+// la combinación más confiable de reversión. Es la única que lleva
+// emoji al principio del título.
 //
 // Todo esto es sobre la temporalidad DIARIA (velas de 1 día). El link a
 // TradingView va como texto al final del mensaje (no como acción de
@@ -162,7 +163,7 @@ async function checkTicker(symbol, closes, times, state) {
     const comparador = isOverbought ? '≥' : '≤';
 
     await sendPush({
-      title: isOverbought ? `🔴 ${symbol} — Sobrecompra (RSI ${TIMEFRAME})` : `🟢 ${symbol} — Sobreventa (RSI ${TIMEFRAME})`,
+      title: isOverbought ? `${symbol} — Sobrecompra (RSI ${TIMEFRAME})` : `${symbol} — Sobreventa (RSI ${TIMEFRAME})`,
       message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n` +
         `💰 Precio: **${fmt(lastClose)}**\n` +
         smaLine +
@@ -179,7 +180,7 @@ async function checkTicker(symbol, closes, times, state) {
   if (shouldAlertBearishDiv) {
     const { i1, i2 } = divergence.bearish;
     await sendPush({
-      title: `🔀 ${symbol} — Divergencia bajista (Momentum ${TIMEFRAME})`,
+      title: `${symbol} — Divergencia bajista (Momentum ${TIMEFRAME})`,
       message: `📉 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo máximo)\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más débil)\n` +
         smaLine +
@@ -196,7 +197,7 @@ async function checkTicker(symbol, closes, times, state) {
   if (shouldAlertBullishDiv) {
     const { i1, i2 } = divergence.bullish;
     await sendPush({
-      title: `🔀 ${symbol} — Divergencia alcista (Momentum ${TIMEFRAME})`,
+      title: `${symbol} — Divergencia alcista (Momentum ${TIMEFRAME})`,
       message: `📈 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo mínimo)\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más fuerte)\n` +
         smaLine +
