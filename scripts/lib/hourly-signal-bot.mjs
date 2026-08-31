@@ -5,6 +5,9 @@
 // nivel de stop-loss y target — el resto de las notificaciones son
 // informativas, sin recomendación de trade.
 //
+// Solo el título de la señal combinada lleva emoji al principio (🎯);
+// el resto de los títulos van sin emoji inicial para diferenciarlas.
+//
 // Se parametriza por símbolo/producto para poder correr el mismo bot en
 // distintos activos (BTC, ETH, ...) sin duplicar la lógica.
 
@@ -183,7 +186,7 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
     await sendPush({
       topic,
       ntfyServer,
-      title: isOverbought ? `🔴 ${symbol} — Sobrecompra (RSI ${TIMEFRAME})` : `🟢 ${symbol} — Sobreventa (RSI ${TIMEFRAME})`,
+      title: isOverbought ? `${symbol} — Sobrecompra (RSI ${TIMEFRAME})` : `${symbol} — Sobreventa (RSI ${TIMEFRAME})`,
       message,
       tags: isOverbought ? ['rotating_light', 'chart_with_upwards_trend'] : ['rotating_light', 'chart_with_downwards_trend'],
       priority: 4,
@@ -199,7 +202,7 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
     await sendPush({
       topic,
       ntfyServer,
-      title: `🔀 ${symbol} — Divergencia bajista (Momentum ${TIMEFRAME})`,
+      title: `${symbol} — Divergencia bajista (Momentum ${TIMEFRAME})`,
       message: `📉 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo máximo)\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más débil)\n` +
         smaLine +
@@ -218,7 +221,7 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
     await sendPush({
       topic,
       ntfyServer,
-      title: `🔀 ${symbol} — Divergencia alcista (Momentum ${TIMEFRAME})`,
+      title: `${symbol} — Divergencia alcista (Momentum ${TIMEFRAME})`,
       message: `📈 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo mínimo)\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más fuerte)\n` +
         smaLine +
@@ -231,7 +234,8 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
 
   // 4) Señal combinada: divergencia + RSI en zona extrema al mismo tiempo.
   // Única notificación con recomendación de trade (stop estructural del
-  // propio pivote + target a 2R).
+  // propio pivote + target a 2R). Es la única que conserva el emoji al
+  // principio del título.
   const bearishConfluenceTime =
     divergence.bearish && currentZone === 'overbought' ? candles[divergence.bearish.i2][0] : null;
   const shouldAlertBearishConfluence =
