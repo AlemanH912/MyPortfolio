@@ -136,6 +136,21 @@ html,body{height:100%;background:var(--navy);color:var(--text);font-family:'Inte
 .main .alert-item.danger{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.2)}
 .main .alert-item.info{background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.2)}
 
+/* inputs y selects dentro de .main (páginas de contenido, NO el modal) */
+.main .frow input,.main .frow select,
+.main input[type="number"],.main input[type="text"],.main input[type="date"]{
+  background:#fff;border-color:rgba(0,0,0,.18);color:#111827;
+}
+.main .frow input:focus,.main .frow select:focus,
+.main input[type="number"]:focus,.main input[type="text"]:focus,.main input[type="date"]:focus{
+  border-color:var(--blue);outline:none;
+}
+.main .hint{color:var(--text3)}
+
+/* dropdown options del modal — el modal es dark (fixed, fuera de .main) */
+.frow select option{background:#1c2128;color:#e6edf3}
+.frow select{color-scheme:dark}
+
 /* ── TOPBAR ─────────────────────────────────────── */
 .topbar{
   display:flex;align-items:center;justify-content:space-between;
