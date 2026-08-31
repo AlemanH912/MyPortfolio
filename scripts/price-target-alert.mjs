@@ -95,7 +95,7 @@ async function main() {
       if (reached) {
         const decimals = cfg.kind === 'ars-usd-ccl' ? 3 : 2;
         await sendPush({
-          title: `🔔 ${cfg.id} — Target de ${cfg.direction === 'sell' ? 'venta' : 'compra'} alcanzado`,
+          title: `${cfg.id} — Target de ${cfg.direction === 'sell' ? 'venta' : 'compra'} alcanzado`,
           message: `💰 Precio actual: **$${fmt(price, decimals)}**\n` +
             `🎯 Target: **$${fmt(cfg.target, decimals)}**\n` +
             (cfg.kind === 'ars-usd-ccl' ? `_(precio en USD, convertido vía CCL implícito de GGAL)_\n` : '') +
