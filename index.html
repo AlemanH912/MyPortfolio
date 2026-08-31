@@ -94,11 +94,47 @@ html,body{height:100%;background:var(--navy);color:var(--text);font-family:'Inte
 }
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
-/* ── MAIN ───────────────────────────────────────── */
-.main{flex:1;overflow-y:auto;background:var(--navy)}
+/* ── MAIN · LIGHT THEME ─────────────────────────── */
+.main{
+  flex:1;overflow-y:auto;
+  --navy:#f0f3f8;
+  --navy3:#f7f9fc;
+  --navy4:#e4e9f2;
+  --card-bg:#ffffff;
+  --card-border:rgba(0,0,0,0.08);
+  --text:#111827;
+  --text2:#374151;
+  --text3:#6b7280;
+  --border:rgba(0,0,0,0.09);
+  --border2:rgba(0,0,0,0.13);
+  --green2:#dcfce7;
+  --red2:#fee2e2;
+  background:var(--navy);
+  color:var(--text);
+}
 .main::-webkit-scrollbar{width:6px}
 .main::-webkit-scrollbar-track{background:transparent}
-.main::-webkit-scrollbar-thumb{background:var(--navy4);border-radius:3px}
+.main::-webkit-scrollbar-thumb{background:#c4cfe0;border-radius:3px}
+
+/* table overrides for light theme */
+.main th{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08)}
+.main td{border-color:rgba(0,0,0,.07)}
+.main tbody tr:hover td{background:rgba(0,0,0,.025)}
+.main .xl-table th{background:#e8edf6;color:var(--text3);border-color:rgba(0,0,0,.1)}
+.main .xl-table td{border-color:rgba(0,0,0,.07);color:var(--text)}
+.main .xl-table tbody tr:hover td{background:rgba(59,130,246,0.05)}
+.main .xl-table tbody tr:hover td.xl-rn{background:#dde3f0}
+.main .xl-table td.xl-rn,.main .xl-table th.xl-rn{background:#edf1f8}
+.main .mover-item{background:var(--navy4);border-color:rgba(0,0,0,.1)}
+.main .stat-card::after{background:radial-gradient(circle,rgba(53,99,233,0.06) 0%,transparent 70%)}
+.main .card-header{border-color:rgba(0,0,0,.08)}
+.main .year-filter-btn{border-color:rgba(0,0,0,.15);color:var(--text3)}
+.main .year-filter-btn:hover{color:var(--text2);border-color:var(--blue3)}
+.main .refresh-btn{background:#fff;border-color:rgba(0,0,0,.15);color:var(--text2)}
+.main .refresh-btn:hover{background:#f0f3f8;color:var(--text);border-color:var(--blue3)}
+.main .alert-item.warn{background:rgba(249,115,22,.08);border-color:rgba(249,115,22,.2)}
+.main .alert-item.danger{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.2)}
+.main .alert-item.info{background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.2)}
 
 /* ── TOPBAR ─────────────────────────────────────── */
 .topbar{
@@ -2072,6 +2108,14 @@ function applyLocalMove(type, plat, tick, qty, price, fechaFmt) {
       CLOSED.unshift({t: tick, plat, bd: '—', sd: fechaFmt, q: qty, bP: p.avgPrice, sP: price, pnl, pct});
       p.qty -= qty;
       if (p.qty <= 0.000001) delete POSITIONS[tick];
+      // Auto-acreditar el producido como USD efectivo
+      const proceeds = qty * price;
+      if (!POSITIONS['USD']) {
+        POSITIONS['USD'] = {qty: 0, avgPrice: 1, platform: plat, type: 'Efectivo'};
+        PRICES['USD'] = 1;
+        RAW_BUYS['USD'] = [];
+      }
+      POSITIONS['USD'].qty += proceeds;
     }
   } else if (type === 'INGRESO') {
     if (POSITIONS[tick]) {
@@ -2460,6 +2504,10 @@ function processSheetRows(rows) {
     } else if (opUpper === 'VENTA') {
       if (!sells[key]) sells[key] = [];
       sells[key].push({qty, price, date: fecha});
+      // Auto-acreditar el producido de la venta como USD efectivo
+      const proceeds = qty * price;
+      if (!cash['USD']) cash['USD'] = {amount: 0, plat: plat || 'BALANZ'};
+      cash['USD'].amount += proceeds;
     }
   }
 
