@@ -2100,6 +2100,11 @@ function applyLocalMove(type, plat, tick, qty, price, fechaFmt) {
       PRICES[tick] = price;
       RAW_BUYS[tick] = [{d: fechaFmt, q: qty, p: price}];
     }
+    // Auto-debitar el costo de la compra del efectivo USD
+    if (POSITIONS['USD']) {
+      POSITIONS['USD'].qty -= qty * price;
+      if (POSITIONS['USD'].qty <= 0.000001) delete POSITIONS['USD'];
+    }
   } else if (type === 'VENTA') {
     if (POSITIONS[tick]) {
       const p = POSITIONS[tick];
@@ -2501,6 +2506,10 @@ function processSheetRows(rows) {
     if (opUpper === 'COMPRA') {
       if (!buys[key]) buys[key] = [];
       buys[key].push({qty, price, date: fecha, plat: plat||''});
+      // Auto-debitar el costo de la compra del efectivo USD
+      const cost = qty * price;
+      if (!cash['USD']) cash['USD'] = {amount: 0, plat: plat || 'BALANZ'};
+      cash['USD'].amount -= cost;
     } else if (opUpper === 'VENTA') {
       if (!sells[key]) sells[key] = [];
       sells[key].push({qty, price, date: fecha});
