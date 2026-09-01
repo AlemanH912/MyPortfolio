@@ -9,7 +9,13 @@
 // También detecta divergencias entre el precio y el Momentum Oscillator
 // diario (bajista: precio hace un máximo más alto con momentum más débil;
 // alcista: precio hace un mínimo más bajo con momentum más fuerte) y
-// manda un tipo de notificación aparte cuando aparece una nueva.
+// manda un tipo de notificación aparte cuando aparece una nueva. Los
+// precios que se comparan ahí son los dos techos/pisos (pivotes) más
+// recientes, que quedan confirmados varias velas después de formarse
+// (se esperan 3 velas de confirmación para no marcar un pivote sobre una
+// vela que todavía se está formando) — por eso esos mensajes también
+// muestran el precio actual por separado, para que no se confundan con
+// "el precio ahora".
 //
 // Un tercer tipo de notificación (🎯 Señal fuerte) dispara cuando una
 // divergencia coincide con el RSI en la zona extrema correspondiente:
@@ -181,7 +187,8 @@ async function checkTicker(symbol, closes, times, state) {
     const { i1, i2 } = divergence.bearish;
     await sendPush({
       title: `${symbol} — Divergencia bajista (Momentum ${TIMEFRAME})`,
-      message: `📉 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo máximo)\n` +
+      message: `💰 Precio actual: **${fmt(lastClose)}**\n` +
+        `📉 Techo anterior → nuevo techo (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}**\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más débil)\n` +
         smaLine +
         `⚠️ El impulso alcista se está agotando\n\n${link}`,
@@ -198,7 +205,8 @@ async function checkTicker(symbol, closes, times, state) {
     const { i1, i2 } = divergence.bullish;
     await sendPush({
       title: `${symbol} — Divergencia alcista (Momentum ${TIMEFRAME})`,
-      message: `📈 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo mínimo)\n` +
+      message: `💰 Precio actual: **${fmt(lastClose)}**\n` +
+        `📈 Piso anterior → nuevo piso (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}**\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}** (más fuerte)\n` +
         smaLine +
         `⚠️ La presión vendedora se está agotando\n\n${link}`,
