@@ -624,6 +624,7 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
   <div class="sidebar-footer">
     <div id="quoteStatus"><span class="live-dot"></span>Cotizaciones live</div>
     <div style="margin-top:4px;font-size:10px" id="lastUpdate">—</div>
+    <div style="margin-top:2px;font-size:10px;color:var(--text3)" id="cclDisplay">CCL: —</div>
   </div>
 </aside>
 
@@ -1299,6 +1300,8 @@ let CCL_RATE = 1300;
 
 // Cambio 24h en % (se actualiza con fetchQuotes)
 const PRICE_CHANGES = {};
+// Fuente del precio: 'USD' | 'ARS÷CCL' | 'CG' | undefined (sin actualizar)
+const PRICE_SOURCE  = {};
 
 // Take Profits (persistidos en localStorage)
 let TAKE_PROFITS = {};
@@ -1493,7 +1496,7 @@ async function fetchQuotes() {
         const d = await r.json();
         cryptos.forEach(tk => {
           if (CG_IDS[tk] && d[CG_IDS[tk]]?.usd) {
-            PRICES[tk] = d[CG_IDS[tk]].usd; fetched++;
+            PRICES[tk] = d[CG_IDS[tk]].usd; PRICE_SOURCE[tk] = 'CG'; fetched++;
             const chg = d[CG_IDS[tk]]?.usd_24h_change;
             if (chg != null) PRICE_CHANGES[tk] = chg / 100;
           }
@@ -1501,31 +1504,44 @@ async function fetchQuotes() {
       }
     }
 
-    // BYMA — Acciones líderes + CEDEARs (ambos requieren POST)
+    // BYMA — Líderes + CEDEARs + General + Bonos + Letras
     try {
       const POST = {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'};
-      const [r1, r2] = await Promise.all([
-        fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/leading-equity', {signal:AbortSignal.timeout(8000), ...POST}),
-        fetch('https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/cedears',        {signal:AbortSignal.timeout(8000), ...POST}),
+      const BASE = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/';
+      const TO   = {signal:AbortSignal.timeout(8000)};
+      const [r1, r2, r3, r4, r5] = await Promise.all([
+        fetch(BASE+'leading-equity',  {...TO, ...POST}),
+        fetch(BASE+'cedears',         {...TO, ...POST}),
+        fetch(BASE+'general-equity',  {...TO, ...POST}),
+        fetch(BASE+'bonds',           {...TO, ...POST}),
+        fetch(BASE+'letras',          {...TO, ...POST}),
       ]);
       // Construir lookup unificado {símbolo → item}
       const byma = {};
-      if (r1.ok) { const d = await r1.json(); (d.data||[]).forEach(it => { if(it.trade) byma[(it.symbol||'').trim()] = it; }); }
-      if (r2.ok) { const d = await r2.json(); (Array.isArray(d)?d:(d.data||[])).forEach(it => { if(it.trade) byma[(it.symbol||'').trim()] = it; }); }
+      const addItems = (d) => (d.data||d||[]).forEach(it => { if(it.trade) byma[(it.symbol||'').trim()] = it; });
+      if (r1.ok) addItems(await r1.json());
+      if (r2.ok) addItems(await r2.json());
+      if (r3.ok) addItems(await r3.json());
+      if (r4.ok) addItems(await r4.json());
+      if (r5.ok) addItems(await r5.json());
+      console.log('[BYMA] símbolos cargados:', Object.keys(byma).length, '| CCL:', CCL_RATE);
 
-      // Para cada posición no-crypto, buscar precio en BYMA
-      Object.keys(POSITIONS).filter(tk => !CG_IDS[tk]).forEach(tk => {
+      // Cash tickers no se buscan en BYMA (precio = 1 siempre)
+      const CASH_SET = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
+
+      Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET.has(tk)).forEach(tk => {
         // Preferir variante "C" (Contado Cable = USD directo) o "D"; sino ARS÷CCL
         const usd = byma[tk+'C'] || byma[tk+'D'];
         const ars = byma[tk];
         const item = (usd && usd.trade > 0) ? usd : (ars && ars.trade > 0 ? ars : null);
-        if (!item) return;
+        if (!item) { console.warn('[BYMA] no encontrado:', tk); return; }
         const isUSD = !!(usd && usd.trade > 0);
         PRICES[tk] = isUSD ? item.trade : item.trade / CCL_RATE;
+        PRICE_SOURCE[tk] = isUSD ? 'USD' : 'ARS÷CCL';
         const open = item.openingPrice || item.previousClosingPrice || 0;
         if (open > 0) PRICE_CHANGES[tk] = (item.trade - open) / open;
         fetched++;
-        console.log('[BYMA]', tk, isUSD?'USD':'ARS÷CCL', '→ $'+PRICES[tk].toFixed(3), '| chg:', (PRICE_CHANGES[tk]*100||0).toFixed(2)+'%');
+        console.log('[BYMA]', tk, PRICE_SOURCE[tk], '→ $'+PRICES[tk].toFixed(4), isUSD?'':`(${item.trade.toFixed(1)} ARS ÷ ${CCL_RATE})`);
       });
     } catch(e) { console.warn('BYMA error:', e); }
 
@@ -1534,6 +1550,7 @@ async function fetchQuotes() {
 
     const ts = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('lastUpdate').textContent = `Actualizado: ${ts}`;
+    document.getElementById('cclDisplay').textContent = `CCL: $${CCL_RATE.toLocaleString('es-AR',{maximumFractionDigits:0})}`;
     toast(`✓ ${fetched} cotizaciones actualizadas`);
   } catch(e) { toast('⚠ Error al actualizar', true); }
   btn.classList.remove('loading');
@@ -1780,7 +1797,7 @@ function renderOperaciones() {
       <td><span class="plat">${p.platform}</span></td>
       <td class="r">${fmtQty(p.qty, tk)}</td>
       <td class="r">$${fn(p.avgPrice, p.avgPrice<1?5:3)}</td>
-      <td class="r" style="color:var(--blue4)">$${fn(cot, cot<1?5:3)}</td>
+      <td class="r" style="color:var(--blue4)" title="${PRICE_SOURCE[tk]||'sin actualizar'}">$${fn(cot, cot<1?5:3)}${!PRICE_SOURCE[tk]?'<span style="color:#ef4444;font-size:9px;margin-left:2px" title="Precio no actualizado desde BYMA">⚠</span>':''}</td>
       <td class="r"><strong>${fmt(val)}</strong></td>
       <td class="r ${pnl>=0?'pos':'neg'}">${fmt(pnl)}</td>
       <td class="r"><span class="badge ${pnl>=0?'bp':'bn'}">${fmtPct(pct)}</span></td>
