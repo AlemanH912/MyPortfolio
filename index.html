@@ -2101,7 +2101,25 @@ function updateModalFields() {
     if (!document.getElementById('fTick').value) document.getElementById('fTick').value = 'USD';
   }
 }
+const CASH_TICKERS = ['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD'];
+
+function applyCashMove(op, plat, tick, amount, fechaFmt) {
+  // COMPRA/INGRESO de efectivo = sumar; VENTA/EGRESO = restar
+  const add = op === 'COMPRA' || op === 'INGRESO';
+  if (!POSITIONS[tick]) {
+    POSITIONS[tick] = {qty: 0, avgPrice: 1, platform: plat, type: 'Efectivo'};
+    PRICES[tick] = 1; RAW_BUYS[tick] = [];
+  }
+  POSITIONS[tick].qty += add ? amount : -amount;
+  if (POSITIONS[tick].qty < 0.001) delete POSITIONS[tick];
+}
+
 function applyLocalMove(type, plat, tick, qty, price, fechaFmt) {
+  // COMPRA/VENTA de efectivo (USD, USDT, ARS…) → solo mueve saldo
+  if (CASH_TICKERS.includes(tick)) {
+    applyCashMove(type, plat, tick, qty * price, fechaFmt);
+    return;
+  }
   if (type === 'COMPRA') {
     if (POSITIONS[tick]) {
       const p = POSITIONS[tick];
@@ -2115,42 +2133,18 @@ function applyLocalMove(type, plat, tick, qty, price, fechaFmt) {
       PRICES[tick] = price;
       RAW_BUYS[tick] = [{d: fechaFmt, q: qty, p: price}];
     }
-    // Auto-debitar USD si hay saldo
-    const cost = qty * price;
-    if (POSITIONS['USD'] && POSITIONS['USD'].qty >= cost - 0.01) {
-      POSITIONS['USD'].qty = Math.max(0, POSITIONS['USD'].qty - cost);
-      if (POSITIONS['USD'].qty < 0.01) delete POSITIONS['USD'];
-    }
   } else if (type === 'VENTA') {
     if (POSITIONS[tick]) {
       const p = POSITIONS[tick];
       const pnl = (price - p.avgPrice) * qty;
       const pct = p.avgPrice > 0 ? (price - p.avgPrice) / p.avgPrice : 0;
       CLOSED.unshift({t: tick, plat, bd: '—', sd: fechaFmt, q: qty, bP: p.avgPrice, sP: price, pnl, pct});
-      p.qty -= qty;
-      if (p.qty <= 0.000001) delete POSITIONS[tick];
+      p.qty -= qty; if (p.qty <= 0.000001) delete POSITIONS[tick];
     }
-    // Acreditar el producido en USD
-    const proceeds = qty * price;
-    if (!POSITIONS['USD']) {
-      POSITIONS['USD'] = {qty: 0, avgPrice: 1, platform: plat, type: 'Efectivo'};
-      PRICES['USD'] = 1;
-      RAW_BUYS['USD'] = [];
-    }
-    POSITIONS['USD'].qty += proceeds;
   } else if (type === 'INGRESO') {
-    if (POSITIONS[tick]) {
-      POSITIONS[tick].qty += qty;
-    } else {
-      POSITIONS[tick] = {qty, avgPrice: 1, platform: plat, type: 'Efectivo'};
-      PRICES[tick] = 1;
-      RAW_BUYS[tick] = [];
-    }
+    applyCashMove('INGRESO', plat, tick, qty, fechaFmt);
   } else if (type === 'EGRESO') {
-    if (POSITIONS[tick]) {
-      POSITIONS[tick].qty -= qty;
-      if (POSITIONS[tick].qty <= 0.000001) delete POSITIONS[tick];
-    }
+    applyCashMove('EGRESO', plat, tick, qty, fechaFmt);
   }
 }
 
@@ -2202,16 +2196,17 @@ function saveMove() {
 }
 
 function buildCashRow(opType, plat, tick, qty, price, fechaFmt, notes) {
-  const proceeds = qty * price;
+  const amount = qty * price;
+  const cashTk = plat === 'BINANCE' ? 'USDT' : 'USD';
   if (opType === 'VENTA') {
-    // Venta → INGRESO USD por el producido
-    return [fechaFmt, plat, 'INGRESO', 'USD', proceeds.toFixed(2), 1, `Auto: venta ${qty} ${tick} @ ${price}`];
+    // Venta de activo → COMPRA de efectivo (comprás dólares con el producido)
+    return [fechaFmt, plat, 'COMPRA', cashTk, amount.toFixed(2), 1, `Auto: venta ${qty} ${tick} @ ${price}`];
   }
   if (opType === 'COMPRA') {
-    // Compra → EGRESO USD por el costo (solo si hay saldo USD)
-    const usdQty = POSITIONS['USD']?.qty || 0;
-    if (usdQty >= proceeds - 0.01) {
-      return [fechaFmt, plat, 'EGRESO', 'USD', proceeds.toFixed(2), 1, `Auto: compra ${qty} ${tick} @ ${price}`];
+    // Compra de activo → VENTA de efectivo (vendés dólares para comprar)
+    const cashQty = POSITIONS[cashTk]?.qty || 0;
+    if (cashQty >= amount - 0.01) {
+      return [fechaFmt, plat, 'VENTA', cashTk, amount.toFixed(2), 1, `Auto: compra ${qty} ${tick} @ ${price}`];
     }
   }
   return null;
@@ -2542,12 +2537,25 @@ function processSheetRows(rows) {
 
     const price = parsePrice(precioStr);
     if (qty <= 0 || price <= 0) continue;
+    const CASH_SET = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
     if (opUpper === 'COMPRA') {
-      if (!buys[key]) buys[key] = [];
-      buys[key].push({qty, price, date: fecha, plat: plat||''});
+      if (CASH_SET.has(key)) {
+        // COMPRA de efectivo = sumar al saldo
+        if (!cash[key]) cash[key] = {amount: 0, plat: plat||'BALANZ'};
+        cash[key].amount += qty * price;
+      } else {
+        if (!buys[key]) buys[key] = [];
+        buys[key].push({qty, price, date: fecha, plat: plat||''});
+      }
     } else if (opUpper === 'VENTA') {
-      if (!sells[key]) sells[key] = [];
-      sells[key].push({qty, price, date: fecha});
+      if (CASH_SET.has(key)) {
+        // VENTA de efectivo = restar del saldo
+        if (!cash[key]) cash[key] = {amount: 0, plat: plat||'BALANZ'};
+        cash[key].amount -= qty * price;
+      } else {
+        if (!sells[key]) sells[key] = [];
+        sells[key].push({qty, price, date: fecha});
+      }
     }
   }
 
