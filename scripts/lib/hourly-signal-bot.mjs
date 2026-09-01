@@ -8,6 +8,14 @@
 // Solo el título de la señal combinada lleva emoji al principio (🎯);
 // el resto de los títulos van sin emoji inicial para diferenciarlas.
 //
+// En los mensajes de divergencia, los precios que se comparan son los
+// dos techos/pisos (pivotes) más recientes usados para detectar la
+// divergencia, que por diseño quedan confirmados varias velas después
+// de formarse (se esperan 3 velas de confirmación para no marcar un
+// pivote sobre una vela que todavía se está formando). Por eso esos
+// mensajes también muestran el precio actual por separado, para que
+// no se confundan con "el precio ahora".
+//
 // Se parametriza por símbolo/producto para poder correr el mismo bot en
 // distintos activos (BTC, ETH, ...) sin duplicar la lógica.
 
@@ -194,7 +202,9 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
     console.log('Push RSI enviado.');
   }
 
-  // 2) Divergencia bajista. Sin recomendación de trade.
+  // 2) Divergencia bajista. Sin recomendación de trade. Los precios que
+  // se comparan son los dos techos (pivotes) más recientes, no el precio
+  // actual — por eso se muestra el precio actual aparte.
   const bearishDivTime = divergence.bearish ? candles[divergence.bearish.i2][0] : null;
   const shouldAlertBearishDiv = bearishDivTime !== null && bearishDivTime !== prevState.lastBearishDivTime;
   if (shouldAlertBearishDiv) {
@@ -203,7 +213,8 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
       topic,
       ntfyServer,
       title: `${symbol} — Divergencia bajista (Momentum ${TIMEFRAME})`,
-      message: `📉 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo máximo)\n` +
+      message: `💰 Precio actual: **${fmt(lastClose)}**\n` +
+        `📉 Techo anterior → nuevo techo (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}**\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más débil)\n` +
         smaLine +
         `⚠️ El impulso alcista se está agotando\n\n${chartLink()}`,
@@ -213,7 +224,8 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
     console.log('Push divergencia bajista enviado.');
   }
 
-  // 3) Divergencia alcista. Sin recomendación de trade.
+  // 3) Divergencia alcista. Sin recomendación de trade. Ídem: los
+  // precios comparados son los dos pisos (pivotes) más recientes.
   const bullishDivTime = divergence.bullish ? candles[divergence.bullish.i2][0] : null;
   const shouldAlertBullishDiv = bullishDivTime !== null && bullishDivTime !== prevState.lastBullishDivTime;
   if (shouldAlertBullishDiv) {
@@ -222,7 +234,8 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
       topic,
       ntfyServer,
       title: `${symbol} — Divergencia alcista (Momentum ${TIMEFRAME})`,
-      message: `📈 Precio (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}** (nuevo mínimo)\n` +
+      message: `💰 Precio actual: **${fmt(lastClose)}**\n` +
+        `📈 Piso anterior → nuevo piso (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}**\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más fuerte)\n` +
         smaLine +
         `⚠️ La presión vendedora se está agotando\n\n${chartLink()}`,
