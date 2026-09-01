@@ -1,21 +1,26 @@
 // Bot horario genérico: RSI(14), POC de volumen, media móvil de 20,
 // divergencias de Momentum(10) y señal combinada, todo sobre velas de 1h
-// (incluyendo la vela en curso, para reaccionar en minutos). Solo la
-// señal combinada (🎯, divergencia + RSI en zona extrema) incluye un
-// nivel de stop-loss y target — el resto de las notificaciones son
-// informativas, sin recomendación de trade.
+// (incluyendo la vela en curso, para reaccionar en minutos).
+//
+// Los tres tipos de notificación (RSI, divergencia, señal combinada)
+// incluyen un nivel de stop-loss y target. La señal combinada (🎯,
+// divergencia + RSI en zona extrema) usa stop estructural (el propio
+// pivote) y es la única que no lleva nota de tamaño reducido, porque es
+// la señal más confiable. RSI y divergencia sueltas (no confluencia) son
+// señales individuales más débiles, así que su recomendación de trade
+// aclara "media posición".
 //
 // Solo el título de la señal combinada lleva emoji al principio (🎯);
 // el resto de los títulos van sin emoji inicial para diferenciarlas.
 //
 // En los mensajes de divergencia, los precios que se comparan son los
 // dos techos/pisos (pivotes) más recientes usados para detectar la
-// divergencia, que por diseño quedan confirmados varias velas después
-// de formarse (se esperan 2 velas de confirmación para no marcar un
-// pivote sobre una vela que todavía se está formando — antes eran 3,
-// se bajó a 2 para que la señal llegue ~1h antes). Por eso esos
-// mensajes también muestran el precio actual por separado, para que
-// no se confundan con "el precio ahora".
+// divergencia. Se espera 1 vela de confirmación después de formarse un
+// pivote, para no marcarlo sobre una vela que todavía se está formando
+// (antes eran 3, después 2; se bajó a 1 —el mínimo posible— para que la
+// señal llegue lo antes posible, a costa de más riesgo de que el pivote
+// no se sostenga). Por eso esos mensajes también muestran el precio
+// actual por separado, para que no se confundan con "el precio ahora".
 //
 // Se parametriza por símbolo/producto para poder correr el mismo bot en
 // distintos activos (BTC, ETH, ...) sin duplicar la lógica.
@@ -39,12 +44,13 @@ const RSI_OVERSOLD = 32;
 const POC_LOOKBACK_HOURS = 24;
 const POC_BINS = 50;
 const MOMENTUM_PERIOD = 10;
-const PIVOT_LOOKBACK = 2;
+const PIVOT_LOOKBACK = 1;
 const SMA_PERIOD = 20;
 const ATR_PERIOD = 14;
 const R_MULTIPLE = 2;
 
 const CAVEAT = '_(referencia técnica — no es asesoramiento financiero)_';
+const HALF_SIZE_NOTE = 'media posición (señal individual, no confluencia)';
 
 function computePOC(candles, lookback = POC_LOOKBACK_HOURS, numBins = POC_BINS) {
   const window = candles.slice(-lookback);
@@ -134,9 +140,10 @@ async function sendPush({ topic, ntfyServer, title, message, tags, priority }) {
   }
 }
 
-function tradeBlock(fmt, price, stop, isBearish) {
+function tradeBlock(fmt, price, stop, isBearish, sizeNote) {
   const { target, rMultiple } = tradeLevels(price, stop, isBearish, R_MULTIPLE);
-  return `🛑 Stop: **${fmt(stop)}**\n🏁 Target: **${fmt(target)}** (R:R 1:${rMultiple})\n${CAVEAT}`;
+  const sizeLine = sizeNote ? `📐 Tamaño sugerido: ${sizeNote}\n` : '';
+  return `🛑 Stop: **${fmt(stop)}**\n🏁 Target: **${fmt(target)}** (R:R 1:${rMultiple})\n${sizeLine}${CAVEAT}`;
 }
 
 export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
@@ -174,8 +181,8 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
 
   const smaLine = sma20 != null ? `📏 Media(${SMA_PERIOD}, ${TIMEFRAME}): **${fmt(sma20)}**\n` : '';
 
-  // 1) RSI: avisa mientras esté fuera de rango, una vez por vela. Sin
-  // recomendación de trade (queda reservada para la señal combinada).
+  // 1) RSI: avisa mientras esté fuera de rango, una vez por vela. Trade a
+  // media posición con stop por ATR (no hay pivote estructural acá).
   const shouldAlertRSI = currentZone !== 'neutral' && prevState.lastAlertCandleTime !== candleTime;
 
   if (shouldAlertRSI) {
@@ -184,11 +191,15 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
     const comparador = isOverbought ? '≥' : '≤';
 
     let message = `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n` +
-      `💰 Precio: **${fmt(lastClose)}**\n` +
+      `💰 Precio actual: **${fmt(lastClose)}**\n` +
       smaLine +
       `🎯 POC 24h: ${fmt(poc)}`;
     if (!justEntered) {
       message += `\n⏱ Hace ${hoursInZone}h en esta zona`;
+    }
+    if (atr != null) {
+      const stop = isOverbought ? lastClose + atr : lastClose - atr;
+      message += `\n\n${tradeBlock(fmt, lastClose, stop, isOverbought, HALF_SIZE_NOTE)}`;
     }
     message += `\n\n${chartLink()}`;
 
@@ -203,13 +214,15 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
     console.log('Push RSI enviado.');
   }
 
-  // 2) Divergencia bajista. Sin recomendación de trade. Los precios que
-  // se comparan son los dos techos (pivotes) más recientes, no el precio
-  // actual — por eso se muestra el precio actual aparte.
+  // 2) Divergencia bajista. Trade a media posición con stop estructural
+  // (el propio techo). Los precios que se comparan son los dos techos
+  // (pivotes) más recientes, no el precio actual — por eso se muestra el
+  // precio actual aparte.
   const bearishDivTime = divergence.bearish ? candles[divergence.bearish.i2][0] : null;
   const shouldAlertBearishDiv = bearishDivTime !== null && bearishDivTime !== prevState.lastBearishDivTime;
   if (shouldAlertBearishDiv) {
     const { i1, i2 } = divergence.bearish;
+    const stop = closes[i2];
     await sendPush({
       topic,
       ntfyServer,
@@ -218,19 +231,21 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
         `📉 Techo anterior → nuevo techo (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}**\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más débil)\n` +
         smaLine +
-        `⚠️ El impulso alcista se está agotando\n\n${chartLink()}`,
+        `⚠️ El impulso alcista se está agotando\n\n${tradeBlock(fmt, lastClose, stop, true, HALF_SIZE_NOTE)}\n\n${chartLink()}`,
       tags: ['bar_chart', 'chart_with_downwards_trend'],
       priority: 3,
     });
     console.log('Push divergencia bajista enviado.');
   }
 
-  // 3) Divergencia alcista. Sin recomendación de trade. Ídem: los
-  // precios comparados son los dos pisos (pivotes) más recientes.
+  // 3) Divergencia alcista. Trade a media posición con stop estructural
+  // (el propio piso). Ídem: los precios comparados son los dos pisos
+  // (pivotes) más recientes.
   const bullishDivTime = divergence.bullish ? candles[divergence.bullish.i2][0] : null;
   const shouldAlertBullishDiv = bullishDivTime !== null && bullishDivTime !== prevState.lastBullishDivTime;
   if (shouldAlertBullishDiv) {
     const { i1, i2 } = divergence.bullish;
+    const stop = closes[i2];
     await sendPush({
       topic,
       ntfyServer,
@@ -239,7 +254,7 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
         `📈 Piso anterior → nuevo piso (${TIMEFRAME}): ${fmt(closes[i1])} → **${fmt(closes[i2])}**\n` +
         `📊 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}): ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}** (más fuerte)\n` +
         smaLine +
-        `⚠️ La presión vendedora se está agotando\n\n${chartLink()}`,
+        `⚠️ La presión vendedora se está agotando\n\n${tradeBlock(fmt, lastClose, stop, false, HALF_SIZE_NOTE)}\n\n${chartLink()}`,
       tags: ['bar_chart', 'chart_with_upwards_trend'],
       priority: 3,
     });
@@ -247,9 +262,9 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
   }
 
   // 4) Señal combinada: divergencia + RSI en zona extrema al mismo tiempo.
-  // Única notificación con recomendación de trade (stop estructural del
-  // propio pivote + target a 2R). Es la única que conserva el emoji al
-  // principio del título.
+  // Trade con stop estructural del propio pivote + target a 2R, sin nota
+  // de tamaño reducido (es la señal más confiable). Es la única que
+  // conserva el emoji al principio del título.
   const bearishConfluenceTime =
     divergence.bearish && currentZone === 'overbought' ? candles[divergence.bearish.i2][0] : null;
   const shouldAlertBearishConfluence =
@@ -263,7 +278,7 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
       title: `🎯 ${symbol} — Señal fuerte: Divergencia + Sobrecompra (${TIMEFRAME})`,
       message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobrecompra, ≥ ${RSI_OVERBOUGHT})\n` +
         `📉 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más débil en el nuevo máximo: ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}**\n` +
-        `💰 Precio: **${fmt(lastClose)}**\n` +
+        `💰 Precio actual: **${fmt(lastClose)}**\n` +
         smaLine +
         `⚠️ Divergencia bajista + RSI en zona extrema → señal más confiable de posible reversión a la baja\n\n${tradeBlock(fmt, lastClose, stop, true)}\n\n${chartLink()}`,
       tags: ['rotating_light', 'triangular_flag_on_post'],
@@ -285,7 +300,7 @@ export async function runHourlyBot({ symbol, product, statePath, tvSymbol }) {
       title: `🎯 ${symbol} — Señal fuerte: Divergencia + Sobreventa (${TIMEFRAME})`,
       message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobreventa, ≤ ${RSI_OVERSOLD})\n` +
         `📈 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más fuerte en el nuevo mínimo: ${momentum[i1].toFixed(1)} → **${momentum[i2].toFixed(1)}**\n` +
-        `💰 Precio: **${fmt(lastClose)}**\n` +
+        `💰 Precio actual: **${fmt(lastClose)}**\n` +
         smaLine +
         `⚠️ Divergencia alcista + RSI en zona extrema → señal más confiable de posible reversión al alza\n\n${tradeBlock(fmt, lastClose, stop, false)}\n\n${chartLink()}`,
       tags: ['rotating_light', 'triangular_flag_on_post'],
