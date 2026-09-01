@@ -11,12 +11,12 @@
 // alcista: precio hace un mínimo más bajo con momentum más fuerte) y
 // manda un tipo de notificación aparte cuando aparece una nueva. Los
 // precios que se comparan ahí son los dos techos/pisos (pivotes) más
-// recientes, que quedan confirmados varias velas después de formarse
-// (se esperan 2 velas de confirmación para no marcar un pivote sobre una
-// vela que todavía se está formando — antes eran 3, se bajó a 2 para que
-// la señal llegue ~1 día antes) — por eso esos mensajes también
-// muestran el precio actual por separado, para que no se confundan con
-// "el precio ahora".
+// recientes, que quedan confirmados 1 vela después de formarse (el
+// mínimo posible, para no marcar un pivote sobre una vela que todavía se
+// está formando — antes eran 3, después 2, se bajó a 1 para que la señal
+// llegue lo antes posible) — por eso esos mensajes también muestran el
+// precio actual por separado, para que no se confundan con "el precio
+// ahora".
 //
 // Un tercer tipo de notificación (🎯 Señal fuerte) dispara cuando una
 // divergencia coincide con el RSI en la zona extrema correspondiente:
@@ -39,7 +39,7 @@ const RSI_PERIOD = 14;
 const RSI_OVERBOUGHT = 70;
 const RSI_OVERSOLD = 30;
 const MOMENTUM_PERIOD = 10;
-const PIVOT_LOOKBACK = 2;
+const PIVOT_LOOKBACK = 1;
 const SMA_PERIOD = 20;
 
 const STATE_PATH = path.join(process.cwd(), 'data', 'watchlist-rsi-state.json');
@@ -172,7 +172,7 @@ async function checkTicker(symbol, closes, times, state) {
     await sendPush({
       title: isOverbought ? `${symbol} — Sobrecompra (RSI ${TIMEFRAME})` : `${symbol} — Sobreventa (RSI ${TIMEFRAME})`,
       message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (${comparador} ${threshold})\n` +
-        `💰 Precio: **${fmt(lastClose)}**\n` +
+        `💰 Precio actual: **${fmt(lastClose)}**\n` +
         smaLine +
         `\n${link}`,
       tags: isOverbought ? ['rotating_light', 'chart_with_upwards_trend'] : ['rotating_light', 'chart_with_downwards_trend'],
@@ -228,7 +228,7 @@ async function checkTicker(symbol, closes, times, state) {
       title: `🎯 ${symbol} — Señal fuerte: Divergencia + Sobrecompra (${TIMEFRAME})`,
       message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobrecompra, ≥ ${RSI_OVERBOUGHT})\n` +
         `📉 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más débil en el nuevo máximo: ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}**\n` +
-        `💰 Precio: **${fmt(lastClose)}**\n` +
+        `💰 Precio actual: **${fmt(lastClose)}**\n` +
         smaLine +
         `⚠️ Divergencia bajista + RSI en zona extrema → señal más confiable de posible reversión a la baja\n\n${link}`,
       tags: ['rotating_light', 'triangular_flag_on_post'],
@@ -247,7 +247,7 @@ async function checkTicker(symbol, closes, times, state) {
       title: `🎯 ${symbol} — Señal fuerte: Divergencia + Sobreventa (${TIMEFRAME})`,
       message: `📊 RSI(14, ${TIMEFRAME}): **${rsi.toFixed(1)}** (sobreventa, ≤ ${RSI_OVERSOLD})\n` +
         `📈 Momentum(${MOMENTUM_PERIOD}, ${TIMEFRAME}) más fuerte en el nuevo mínimo: ${momentum[i1].toFixed(2)} → **${momentum[i2].toFixed(2)}**\n` +
-        `💰 Precio: **${fmt(lastClose)}**\n` +
+        `💰 Precio actual: **${fmt(lastClose)}**\n` +
         smaLine +
         `⚠️ Divergencia alcista + RSI en zona extrema → señal más confiable de posible reversión al alza\n\n${link}`,
       tags: ['rotating_light', 'triangular_flag_on_post'],
