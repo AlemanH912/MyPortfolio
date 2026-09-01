@@ -2605,11 +2605,11 @@ function processSheetRows(rows) {
   CLOSED.length = 0;
   CLOSED.push(...newClosed);
 
-  // Agregar posiciones de efectivo (INGRESO/EGRESO)
+  // Agregar posiciones de efectivo (INGRESO/EGRESO/COMPRA/VENTA de cash tickers)
   for (const [ticker, {amount, plat}] of Object.entries(cash)) {
     if (amount > 0.01) {
-      newPositions[ticker] = {qty: amount, avgPrice: 1, platform: (plat||'BALANZ').trim().toUpperCase(), type: 'Efectivo'};
-      newRawBuys[ticker] = [];
+      POSITIONS[ticker] = {qty: amount, avgPrice: 1, platform: (plat||'BALANZ').trim().toUpperCase(), type: 'Efectivo'};
+      RAW_BUYS[ticker] = [];
     }
   }
 
