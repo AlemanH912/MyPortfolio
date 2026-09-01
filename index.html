@@ -767,6 +767,26 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
 
   <!-- ── OPERACIONES ────────────────────────────── -->
   <div class="page" id="page-operaciones">
+    <!-- Widget Take Profit -->
+    <div id="tp-widget" style="display:none" class="card mb24">
+      <div class="card-header">
+        <span class="card-title">🎯 Take Profits activos</span>
+        <span class="pill" style="background:rgba(251,191,36,.12);color:#fbbf24;font-size:10px">Ordenado por cercanía al TP</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Ticker</th>
+            <th class="r">Precio actual</th>
+            <th class="r">Take Profit</th>
+            <th class="r">% hasta TP</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="tp-table"></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="sec-hdr">
       <div>
         <div class="sec-title">Posiciones activas</div>
@@ -787,6 +807,7 @@ tbody tr:hover td{background:rgba(255,255,255,.03);cursor:pointer}
             <th class="sortable r" data-col="6" onclick="sortTable('ops',6)">P&amp;L</th>
             <th class="sortable r" data-col="7" onclick="sortTable('ops',7)">Rend.</th>
             <th class="sortable r" data-col="8" onclick="sortTable('ops',8)">TIR anual</th>
+            <th style="text-align:center">TP</th>
           </tr></thead>
           <tbody id="op-table"></tbody>
         </table>
@@ -1279,6 +1300,16 @@ let CCL_RATE = 1300;
 // Cambio 24h en % (se actualiza con fetchQuotes)
 const PRICE_CHANGES = {};
 
+// Take Profits (persistidos en localStorage)
+let TAKE_PROFITS = {};
+function loadTP() {
+  try { TAKE_PROFITS = JSON.parse(localStorage.getItem('takeProfits') || '{}'); } catch(e) { TAKE_PROFITS = {}; }
+}
+function saveTP() {
+  try { localStorage.setItem('takeProfits', JSON.stringify(TAKE_PROFITS)); } catch(e) {}
+}
+loadTP();
+
 // Estado de ordenamiento para tablas
 const TABLE_SORT = {
   ops:  { col: null, dir: 1 },
@@ -1656,6 +1687,66 @@ function renderHome() {
 // ═══════════════════════════════════════════════════
 //  RENDER OPERACIONES
 // ═══════════════════════════════════════════════════
+// ══════ TAKE PROFIT ══════
+let _tpCurrentTk = null;
+
+function openTPModal(tk) {
+  _tpCurrentTk = tk;
+  document.getElementById('tp-modal-ticker').textContent = tk;
+  const cot = PRICES[tk] || POSITIONS[tk]?.avgPrice || 0;
+  document.getElementById('tp-modal-current').textContent = '$' + fn(cot, cot < 1 ? 5 : 3);
+  document.getElementById('tp-modal-price').value = TAKE_PROFITS[tk] || '';
+  document.getElementById('mTP').style.display = 'flex';
+  setTimeout(() => document.getElementById('tp-modal-price').focus(), 50);
+}
+function closeTPModal() { document.getElementById('mTP').style.display = 'none'; }
+function saveTP_modal() {
+  const v = parseFloat(document.getElementById('tp-modal-price').value);
+  if (!isNaN(v) && v > 0) {
+    TAKE_PROFITS[_tpCurrentTk] = v;
+    saveTP();
+  }
+  closeTPModal();
+  renderOperaciones();
+}
+function removeTP() {
+  delete TAKE_PROFITS[_tpCurrentTk];
+  saveTP();
+  closeTPModal();
+  renderOperaciones();
+}
+
+function renderTakeProfitWidget() {
+  const widget = document.getElementById('tp-widget');
+  const tbody  = document.getElementById('tp-table');
+  const entries = Object.entries(TAKE_PROFITS)
+    .filter(([tk]) => POSITIONS[tk])
+    .map(([tk, tp]) => {
+      const cot = PRICES[tk] || POSITIONS[tk].avgPrice;
+      const pct = (tp - cot) / cot;
+      return { tk, cot, tp, pct };
+    })
+    .sort((a, b) => a.pct - b.pct);
+
+  if (!entries.length) { widget.style.display = 'none'; return; }
+  widget.style.display = '';
+
+  tbody.innerHTML = entries.map(({tk, cot, tp, pct}) => {
+    const already = pct <= 0;
+    const cls = already ? 'pos' : '';
+    const pctLabel = already
+      ? `<span class="badge bp">+${(Math.abs(pct)*100).toFixed(1)}% ✓</span>`
+      : `<span class="badge" style="background:rgba(251,191,36,.15);color:#fbbf24">+${(pct*100).toFixed(1)}%</span>`;
+    return `<tr>
+      <td><span class="ticker">${tk}</span></td>
+      <td class="r">$${fn(cot, cot<1?5:3)}</td>
+      <td class="r" style="color:#fbbf24;font-weight:600">$${fn(tp, tp<1?5:3)}</td>
+      <td class="r">${pctLabel}</td>
+      <td style="text-align:center"><button onclick="openTPModal('${tk}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px" title="Editar TP">✏️</button></td>
+    </tr>`;
+  }).join('');
+}
+
 function renderOperaciones() {
   let totalPnl = 0;
   let entries = opCatFilter
@@ -1694,11 +1785,19 @@ function renderOperaciones() {
       <td class="r ${pnl>=0?'pos':'neg'}">${fmt(pnl)}</td>
       <td class="r"><span class="badge ${pnl>=0?'bp':'bn'}">${fmtPct(pct)}</span></td>
       <td class="r">${fmtTIR(tir)}</td>
+      <td style="text-align:center;white-space:nowrap" onclick="event.stopPropagation()">
+        ${TAKE_PROFITS[tk]
+          ? `<span style="color:#fbbf24;font-size:11px;font-weight:600">$${fn(TAKE_PROFITS[tk],TAKE_PROFITS[tk]<1?5:3)}</span>
+             <button onclick="openTPModal('${tk}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px" title="Editar">✏️</button>`
+          : `<button onclick="openTPModal('${tk}')" style="background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text3);font-size:10px;padding:2px 6px">+ TP</button>`
+        }
+      </td>
     </tr>`;
   }).join('');
 
   document.getElementById('op-table').innerHTML = rows;
   applySortHeaders('op-thead', 'ops');
+  renderTakeProfitWidget();
   const pill = document.getElementById('op-pnl-pill');
   const filterTag = opCatFilter ? ` <span class="filter-active-pill" onclick="setOpCatFilter(null)" title="Quitar filtro">🏷 ${opCatFilter} ✕</span>` : '';
   pill.innerHTML = `P&L activo: ${fmtH(totalPnl)}${filterTag}`;
@@ -3542,5 +3641,24 @@ initGoogleAuth();
     <button class="mbtn save" onclick="saveEditAh()">Guardar</button>
   </div>
 </div></div>
+
+<!-- MODAL TAKE PROFIT -->
+<div class="overlay" id="mTP" onclick="if(event.target===this)closeTPModal()">
+<div class="modal" style="max-width:340px">
+  <h2>Take Profit — <span id="tp-modal-ticker"></span></h2>
+  <div class="frow">
+    <label>Precio objetivo (USD)</label>
+    <input type="number" id="tp-modal-price" step="any" placeholder="0.00">
+  </div>
+  <div style="font-size:12px;color:var(--text3);margin:4px 0 16px">
+    Precio actual: <strong id="tp-modal-current"></strong>
+  </div>
+  <div class="mbtns">
+    <button class="mbtn cancel" onclick="closeTPModal()">Cancelar</button>
+    <button class="mbtn" style="background:rgba(239,68,68,.2);color:#f87171;border:none" onclick="removeTP()">Quitar TP</button>
+    <button class="mbtn save" onclick="saveTP_modal()">Guardar</button>
+  </div>
+</div></div>
+
 </body>
 </html>
