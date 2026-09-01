@@ -12,8 +12,9 @@
 // manda un tipo de notificación aparte cuando aparece una nueva. Los
 // precios que se comparan ahí son los dos techos/pisos (pivotes) más
 // recientes, que quedan confirmados varias velas después de formarse
-// (se esperan 3 velas de confirmación para no marcar un pivote sobre una
-// vela que todavía se está formando) — por eso esos mensajes también
+// (se esperan 2 velas de confirmación para no marcar un pivote sobre una
+// vela que todavía se está formando — antes eran 3, se bajó a 2 para que
+// la señal llegue ~1 día antes) — por eso esos mensajes también
 // muestran el precio actual por separado, para que no se confundan con
 // "el precio ahora".
 //
@@ -38,7 +39,7 @@ const RSI_PERIOD = 14;
 const RSI_OVERBOUGHT = 70;
 const RSI_OVERSOLD = 30;
 const MOMENTUM_PERIOD = 10;
-const PIVOT_LOOKBACK = 3;
+const PIVOT_LOOKBACK = 2;
 const SMA_PERIOD = 20;
 
 const STATE_PATH = path.join(process.cwd(), 'data', 'watchlist-rsi-state.json');
