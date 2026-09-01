@@ -2203,11 +2203,8 @@ function buildCashRow(opType, plat, tick, qty, price, fechaFmt, notes) {
     return [fechaFmt, plat, 'COMPRA', cashTk, amount.toFixed(2), 1, `Auto: venta ${qty} ${tick} @ ${price}`];
   }
   if (opType === 'COMPRA') {
-    // Compra de activo → VENTA de efectivo (vendés dólares para comprar)
-    const cashQty = POSITIONS[cashTk]?.qty || 0;
-    if (cashQty >= amount - 0.01) {
-      return [fechaFmt, plat, 'VENTA', cashTk, amount.toFixed(2), 1, `Auto: compra ${qty} ${tick} @ ${price}`];
-    }
+    // Compra de activo → VENTA de efectivo
+    return [fechaFmt, plat, 'VENTA', cashTk, amount.toFixed(2), 1, `Auto: compra ${qty} ${tick} @ ${price}`];
   }
   return null;
 }
