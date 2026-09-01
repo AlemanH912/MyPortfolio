@@ -11,8 +11,9 @@
 // En los mensajes de divergencia, los precios que se comparan son los
 // dos techos/pisos (pivotes) más recientes usados para detectar la
 // divergencia, que por diseño quedan confirmados varias velas después
-// de formarse (se esperan 3 velas de confirmación para no marcar un
-// pivote sobre una vela que todavía se está formando). Por eso esos
+// de formarse (se esperan 2 velas de confirmación para no marcar un
+// pivote sobre una vela que todavía se está formando — antes eran 3,
+// se bajó a 2 para que la señal llegue ~1h antes). Por eso esos
 // mensajes también muestran el precio actual por separado, para que
 // no se confundan con "el precio ahora".
 //
@@ -38,7 +39,7 @@ const RSI_OVERSOLD = 32;
 const POC_LOOKBACK_HOURS = 24;
 const POC_BINS = 50;
 const MOMENTUM_PERIOD = 10;
-const PIVOT_LOOKBACK = 3;
+const PIVOT_LOOKBACK = 2;
 const SMA_PERIOD = 20;
 const ATR_PERIOD = 14;
 const R_MULTIPLE = 2;
