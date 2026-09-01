@@ -2115,10 +2115,11 @@ function applyLocalMove(type, plat, tick, qty, price, fechaFmt) {
       PRICES[tick] = price;
       RAW_BUYS[tick] = [{d: fechaFmt, q: qty, p: price}];
     }
-    // Auto-debitar el costo de la compra del efectivo USD
-    if (POSITIONS['USD']) {
-      POSITIONS['USD'].qty -= qty * price;
-      if (POSITIONS['USD'].qty <= 0.000001) delete POSITIONS['USD'];
+    // Auto-debitar USD si hay saldo
+    const cost = qty * price;
+    if (POSITIONS['USD'] && POSITIONS['USD'].qty >= cost - 0.01) {
+      POSITIONS['USD'].qty = Math.max(0, POSITIONS['USD'].qty - cost);
+      if (POSITIONS['USD'].qty < 0.01) delete POSITIONS['USD'];
     }
   } else if (type === 'VENTA') {
     if (POSITIONS[tick]) {
@@ -2128,15 +2129,15 @@ function applyLocalMove(type, plat, tick, qty, price, fechaFmt) {
       CLOSED.unshift({t: tick, plat, bd: '—', sd: fechaFmt, q: qty, bP: p.avgPrice, sP: price, pnl, pct});
       p.qty -= qty;
       if (p.qty <= 0.000001) delete POSITIONS[tick];
-      // Auto-acreditar el producido como USD efectivo
-      const proceeds = qty * price;
-      if (!POSITIONS['USD']) {
-        POSITIONS['USD'] = {qty: 0, avgPrice: 1, platform: plat, type: 'Efectivo'};
-        PRICES['USD'] = 1;
-        RAW_BUYS['USD'] = [];
-      }
-      POSITIONS['USD'].qty += proceeds;
     }
+    // Acreditar el producido en USD
+    const proceeds = qty * price;
+    if (!POSITIONS['USD']) {
+      POSITIONS['USD'] = {qty: 0, avgPrice: 1, platform: plat, type: 'Efectivo'};
+      PRICES['USD'] = 1;
+      RAW_BUYS['USD'] = [];
+    }
+    POSITIONS['USD'].qty += proceeds;
   } else if (type === 'INGRESO') {
     if (POSITIONS[tick]) {
       POSITIONS[tick].qty += qty;
@@ -2173,24 +2174,47 @@ function saveMove() {
   const fechaFmt = fecha.split('-').reverse().join('/');
   const sheetRow = [fechaFmt, plat, opType, tick, qty, price, notes];
 
+  // Fila de cash automática para VENTA/COMPRA
+  const cashRow = buildCashRow(opType, plat, tick, qty, price, fechaFmt, notes);
+
   if (accessToken) {
-    appendToSheet(sheetRow).then(ok => {
-      if (ok) {
-        toast(`✓ ${opType} de ${tick} guardada — recargando desde Sheets...`);
+    const rows = cashRow ? [sheetRow, cashRow] : [sheetRow];
+    Promise.all(rows.map(r => appendToSheet(r))).then(results => {
+      if (results[0]) {
+        const cashMsg = cashRow ? ` + ${cashRow[2]} USD automático` : '';
+        toast(`✓ ${opType} de ${tick} guardada${cashMsg} — recargando...`);
         loadFromSheets();
       } else {
-        toast('⚠ Error al guardar en Sheets — operación registrada localmente', true);
+        toast('⚠ Error al guardar en Sheets — registrado localmente', true);
         applyLocalMove(opType, plat, tick, qty, price, fechaFmt);
+        if (cashRow) applyLocalMove(cashRow[2], plat, cashRow[3], parseFloat(cashRow[4]), 1, fechaFmt);
         renderAll();
         fetchQuotes();
       }
     });
   } else {
     applyLocalMove(opType, plat, tick, qty, price, fechaFmt);
+    if (cashRow) applyLocalMove(cashRow[2], plat, cashRow[3], parseFloat(cashRow[4]), 1, fechaFmt);
     renderAll();
     fetchQuotes();
     toast(`✓ ${opType} de ${tick} registrada — conectá Sheets para guardar`);
   }
+}
+
+function buildCashRow(opType, plat, tick, qty, price, fechaFmt, notes) {
+  const proceeds = qty * price;
+  if (opType === 'VENTA') {
+    // Venta → INGRESO USD por el producido
+    return [fechaFmt, plat, 'INGRESO', 'USD', proceeds.toFixed(2), 1, `Auto: venta ${qty} ${tick} @ ${price}`];
+  }
+  if (opType === 'COMPRA') {
+    // Compra → EGRESO USD por el costo (solo si hay saldo USD)
+    const usdQty = POSITIONS['USD']?.qty || 0;
+    if (usdQty >= proceeds - 0.01) {
+      return [fechaFmt, plat, 'EGRESO', 'USD', proceeds.toFixed(2), 1, `Auto: compra ${qty} ${tick} @ ${price}`];
+    }
+  }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════
@@ -2521,17 +2545,9 @@ function processSheetRows(rows) {
     if (opUpper === 'COMPRA') {
       if (!buys[key]) buys[key] = [];
       buys[key].push({qty, price, date: fecha, plat: plat||''});
-      // Auto-debitar el costo de la compra del efectivo USD
-      const cost = qty * price;
-      if (!cash['USD']) cash['USD'] = {amount: 0, plat: plat || 'BALANZ'};
-      cash['USD'].amount -= cost;
     } else if (opUpper === 'VENTA') {
       if (!sells[key]) sells[key] = [];
       sells[key].push({qty, price, date: fecha});
-      // Auto-acreditar el producido de la venta como USD efectivo
-      const proceeds = qty * price;
-      if (!cash['USD']) cash['USD'] = {amount: 0, plat: plat || 'BALANZ'};
-      cash['USD'].amount += proceeds;
     }
   }
 
