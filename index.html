@@ -1504,63 +1504,68 @@ async function fetchQuotes() {
       }
     }
 
-    // BYMA — Líderes + CEDEARs (cada fetch aislado para que un fallo no rompa los otros)
+    // BYMA via corsproxy.io (BYMA bloquea CORS directo — solo permite su propia origin)
     try {
-      const POST = {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'};
-      const BASE = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/';
-      const TO   = {signal:AbortSignal.timeout(8000)};
+      const PROXY   = 'https://corsproxy.io/?url=';
+      const BYMA    = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/';
+      const bymaPost = async (ep) => {
+        try {
+          const r = await fetch(PROXY + encodeURIComponent(BYMA + ep), {
+            method:'POST', headers:{'Content-Type':'application/json','x-requested-with':'XMLHttpRequest'},
+            body:'{}', signal:AbortSignal.timeout(9000)
+          });
+          return r.ok ? r.json() : null;
+        } catch(e) { return null; }
+      };
       const byma = {};
       const addItems = (d) => {
-        try { (Array.isArray(d) ? d : (d.data||[])).forEach(it => { if(it.trade > 0) byma[(it.symbol||'').trim()] = it; }); }
-        catch(e) {}
+        if (!d) return;
+        const arr = Array.isArray(d) ? d : (d.data || []);
+        arr.forEach(it => {
+          const sym = (it.symbol || '').trim();
+          const precio = it.trade > 0 ? it.trade : (it.closingPrice || it.previousClosingPrice || 0);
+          if (sym && precio > 0) byma[sym] = {...it, _price: precio};
+        });
       };
-      // Usar allSettled para que el fallo de un endpoint no cancele los demás
-      const results = await Promise.allSettled([
-        fetch(BASE+'leading-equity', {...TO,...POST}).then(r=>r.ok?r.json():null),
-        fetch(BASE+'cedears',        {...TO,...POST}).then(r=>r.ok?r.json():null),
-        fetch(BASE+'general-equity', {...TO,...POST}).then(r=>r.ok?r.json():null),
-        fetch(BASE+'bonds',          {...TO,...POST}).then(r=>r.ok?r.json():null),
-        fetch(BASE+'letras',         {...TO,...POST}).then(r=>r.ok?r.json():null),
-      ]);
-      results.forEach(r => { if (r.status==='fulfilled' && r.value) addItems(r.value); });
-      console.log('[BYMA] símbolos cargados:', Object.keys(byma).length, '| CCL:', CCL_RATE);
+      const [d1, d2] = await Promise.all([bymaPost('leading-equity'), bymaPost('cedears')]);
+      addItems(d1); addItems(d2);
+      console.log('[BYMA] símbolos:', Object.keys(byma).length, '| CCL:', CCL_RATE);
 
       const CASH_SET = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
       Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET.has(tk)).forEach(tk => {
-        const usd = byma[tk+'C'] || byma[tk+'D'];
-        const ars = byma[tk];
-        const item = (usd && usd.trade > 0) ? usd : (ars && ars.trade > 0 ? ars : null);
+        const usd  = byma[tk+'C'] || byma[tk+'D'];   // CEDEAR cable → ya en USD
+        const ars  = byma[tk];
+        const item = (usd?._price > 0) ? usd : (ars?._price > 0 ? ars : null);
         if (!item) { console.warn('[BYMA] no encontrado:', tk); return; }
-        const isUSD = !!(usd && usd.trade > 0);
-        PRICES[tk] = isUSD ? item.trade : item.trade / CCL_RATE;
+        const isUSD = item === usd;
+        PRICES[tk] = isUSD ? item._price : item._price / CCL_RATE;
         PRICE_SOURCE[tk] = isUSD ? 'BYMA-USD' : 'BYMA÷CCL';
         const open = item.openingPrice || item.previousClosingPrice || 0;
-        if (open > 0) PRICE_CHANGES[tk] = (item.trade - open) / open;
+        if (open > 0) PRICE_CHANGES[tk] = (item._price - open) / open;
         fetched++;
-        console.log('[BYMA]', tk, PRICE_SOURCE[tk], '→ $'+PRICES[tk].toFixed(4),
-          isUSD ? '' : `(${item.trade.toFixed(1)} ARS ÷ ${CCL_RATE})`);
+        console.log('[BYMA]', tk, PRICE_SOURCE[tk], '→ $'+PRICES[tk].toFixed(4));
       });
     } catch(e) { console.warn('BYMA error:', e); }
 
-    // Yahoo Finance (.BA) — fallback para tickers no resueltos por BYMA
-    // Precios en ARS → siempre ÷ CCL (tanto acciones como CEDEARs en ARS)
-    const CASH_SET3 = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
-    const missingTks = Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET3.has(tk) && !PRICE_SOURCE[tk]);
+    // Yahoo Finance via allorigins (fallback para tickers no en BYMA, ej: HARG)
+    // Yahoo .BA devuelve precio en ARS → dividir por CCL
+    const CASH_SET2 = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
+    const missingTks = Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET2.has(tk) && !PRICE_SOURCE[tk]);
     if (missingTks.length) {
       await Promise.all(missingTks.map(async tk => {
         try {
-          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(tk)}.BA?interval=1d&range=1d`;
-          const r = await fetch(url, {signal: AbortSignal.timeout(6000)});
+          const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(tk)}.BA?interval=1d&range=1d`;
+          const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(yfUrl);
+          const r = await fetch(proxyUrl, {signal: AbortSignal.timeout(8000)});
           if (!r.ok) return;
           const d = await r.json();
           const precio = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
           if (!precio || precio <= 0) return;
-          // Yahoo .BA siempre devuelve ARS → dividir por CCL
           PRICES[tk] = precio / CCL_RATE;
           PRICE_SOURCE[tk] = 'YF÷CCL';
           fetched++;
           console.log('[YF]', tk, '→ $'+PRICES[tk].toFixed(4), `(${precio} ARS ÷ ${CCL_RATE})`);
-        } catch(e) { /* silencioso */ }
+        } catch(e) { console.warn('[YF] error', tk, e.message); }
       }));
     }
 
