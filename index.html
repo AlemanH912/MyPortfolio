@@ -1545,35 +1545,34 @@ async function fetchQuotes() {
       });
     } catch(e) { console.warn('BYMA error:', e); }
 
-    // IOL — fallback para tickers no encontrados en BYMA
-    // Precios vienen en ARS → dividir por CCL (igual que BYMA).
-    // CEDEARs "C" en IOL son USD directo → no dividir.
+    // RAVA — fallback para tickers no encontrados en BYMA
+    // Rava devuelve precio en ARS → siempre dividir por CCL.
+    // Si el ticker tiene variante C (CEDEAR cable) en Rava, ese precio ya es USD → no dividir.
     const CASH_SET2 = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
     const missingTks = Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET2.has(tk) && !PRICE_SOURCE[tk]);
     if (missingTks.length) {
-      try {
-        // IOL API pública (no requiere auth para cotizaciones básicas de BCBA)
-        const iolBase = 'https://api.invertironline.com/api/v2/Cotizacion/bCBA/';
-        await Promise.all(missingTks.map(async tk => {
-          try {
-            // Intentar primero variante con C (USD directo en IOL)
-            const tryCandidates = [tk+'C', tk];
-            for (const sym of tryCandidates) {
-              const r = await fetch(iolBase + encodeURIComponent(sym) + '/Cotizacion', {signal: AbortSignal.timeout(5000)});
-              if (!r.ok) continue;
-              const d = await r.json();
-              const precio = d.ultimoPrecio || d.precio || 0;
-              if (!precio) continue;
-              const isUSD = sym.endsWith('C') && sym !== tk; // variante C = USD
-              PRICES[tk] = isUSD ? precio : precio / CCL_RATE;
-              PRICE_SOURCE[tk] = isUSD ? 'IOL-USD' : 'IOL÷CCL';
-              fetched++;
-              console.log('[IOL]', tk, '(sym:', sym+')', PRICE_SOURCE[tk], '→ $'+PRICES[tk].toFixed(4));
-              break;
-            }
-          } catch(e) { /* silencioso por ticker */ }
-        }));
-      } catch(e) { console.warn('IOL error:', e); }
+      await Promise.all(missingTks.map(async tk => {
+        try {
+          // Intentar con sufijo C primero (CEDEAR USD), luego sin sufijo (ARS ÷ CCL)
+          const candidates = [{ sym: tk+'C', isUSD: true }, { sym: tk, isUSD: false }];
+          for (const { sym, isUSD } of candidates) {
+            const r = await fetch(
+              `https://www.rava.com/api/cotizacion.php?e=${encodeURIComponent(sym)}`,
+              { signal: AbortSignal.timeout(5000) }
+            );
+            if (!r.ok) continue;
+            const d = await r.json();
+            const precio = d.c || d.ultimo || d.price || 0;   // último precio
+            if (!precio || precio <= 0) continue;
+            PRICES[tk] = isUSD ? precio : precio / CCL_RATE;
+            PRICE_SOURCE[tk] = isUSD ? 'RAVA-USD' : 'RAVA÷CCL';
+            fetched++;
+            console.log('[RAVA]', tk, '(sym:', sym+')', PRICE_SOURCE[tk],
+              '→ $'+PRICES[tk].toFixed(4), isUSD ? '' : `(${precio} ARS ÷ ${CCL_RATE})`);
+            break;
+          }
+        } catch(e) { /* silencioso por ticker */ }
+      }));
     }
 
     // Respaldo: calcular variación desde precios guardados del día anterior
