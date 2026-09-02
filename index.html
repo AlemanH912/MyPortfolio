@@ -1504,74 +1504,63 @@ async function fetchQuotes() {
       }
     }
 
-    // BYMA — Líderes + CEDEARs + General + Bonos + Letras
+    // BYMA — Líderes + CEDEARs (cada fetch aislado para que un fallo no rompa los otros)
     try {
       const POST = {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'};
       const BASE = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/';
       const TO   = {signal:AbortSignal.timeout(8000)};
-      const [r1, r2, r3, r4, r5] = await Promise.all([
-        fetch(BASE+'leading-equity',  {...TO, ...POST}),
-        fetch(BASE+'cedears',         {...TO, ...POST}),
-        fetch(BASE+'general-equity',  {...TO, ...POST}),
-        fetch(BASE+'bonds',           {...TO, ...POST}),
-        fetch(BASE+'letras',          {...TO, ...POST}),
-      ]);
-      // Construir lookup unificado {símbolo → item}
       const byma = {};
-      const addItems = (d) => (d.data||d||[]).forEach(it => { if(it.trade) byma[(it.symbol||'').trim()] = it; });
-      if (r1.ok) addItems(await r1.json());
-      if (r2.ok) addItems(await r2.json());
-      if (r3.ok) addItems(await r3.json());
-      if (r4.ok) addItems(await r4.json());
-      if (r5.ok) addItems(await r5.json());
+      const addItems = (d) => {
+        try { (Array.isArray(d) ? d : (d.data||[])).forEach(it => { if(it.trade > 0) byma[(it.symbol||'').trim()] = it; }); }
+        catch(e) {}
+      };
+      // Usar allSettled para que el fallo de un endpoint no cancele los demás
+      const results = await Promise.allSettled([
+        fetch(BASE+'leading-equity', {...TO,...POST}).then(r=>r.ok?r.json():null),
+        fetch(BASE+'cedears',        {...TO,...POST}).then(r=>r.ok?r.json():null),
+        fetch(BASE+'general-equity', {...TO,...POST}).then(r=>r.ok?r.json():null),
+        fetch(BASE+'bonds',          {...TO,...POST}).then(r=>r.ok?r.json():null),
+        fetch(BASE+'letras',         {...TO,...POST}).then(r=>r.ok?r.json():null),
+      ]);
+      results.forEach(r => { if (r.status==='fulfilled' && r.value) addItems(r.value); });
       console.log('[BYMA] símbolos cargados:', Object.keys(byma).length, '| CCL:', CCL_RATE);
 
-      // Cash tickers no se buscan en BYMA (precio = 1 siempre)
       const CASH_SET = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
-
       Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET.has(tk)).forEach(tk => {
-        // Preferir variante "C" (Contado Cable = USD directo) o "D"; sino ARS÷CCL
         const usd = byma[tk+'C'] || byma[tk+'D'];
         const ars = byma[tk];
         const item = (usd && usd.trade > 0) ? usd : (ars && ars.trade > 0 ? ars : null);
         if (!item) { console.warn('[BYMA] no encontrado:', tk); return; }
         const isUSD = !!(usd && usd.trade > 0);
         PRICES[tk] = isUSD ? item.trade : item.trade / CCL_RATE;
-        PRICE_SOURCE[tk] = isUSD ? 'USD' : 'ARS÷CCL';
+        PRICE_SOURCE[tk] = isUSD ? 'BYMA-USD' : 'BYMA÷CCL';
         const open = item.openingPrice || item.previousClosingPrice || 0;
         if (open > 0) PRICE_CHANGES[tk] = (item.trade - open) / open;
         fetched++;
-        console.log('[BYMA]', tk, PRICE_SOURCE[tk], '→ $'+PRICES[tk].toFixed(4), isUSD?'':`(${item.trade.toFixed(1)} ARS ÷ ${CCL_RATE})`);
+        console.log('[BYMA]', tk, PRICE_SOURCE[tk], '→ $'+PRICES[tk].toFixed(4),
+          isUSD ? '' : `(${item.trade.toFixed(1)} ARS ÷ ${CCL_RATE})`);
       });
     } catch(e) { console.warn('BYMA error:', e); }
 
-    // RAVA — fallback para tickers no encontrados en BYMA
-    // Rava devuelve precio en ARS → siempre dividir por CCL.
-    // Si el ticker tiene variante C (CEDEAR cable) en Rava, ese precio ya es USD → no dividir.
-    const CASH_SET2 = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
-    const missingTks = Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET2.has(tk) && !PRICE_SOURCE[tk]);
+    // Yahoo Finance (.BA) — fallback para tickers no resueltos por BYMA
+    // Precios en ARS → siempre ÷ CCL (tanto acciones como CEDEARs en ARS)
+    const CASH_SET3 = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
+    const missingTks = Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET3.has(tk) && !PRICE_SOURCE[tk]);
     if (missingTks.length) {
       await Promise.all(missingTks.map(async tk => {
         try {
-          // Intentar con sufijo C primero (CEDEAR USD), luego sin sufijo (ARS ÷ CCL)
-          const candidates = [{ sym: tk+'C', isUSD: true }, { sym: tk, isUSD: false }];
-          for (const { sym, isUSD } of candidates) {
-            const r = await fetch(
-              `https://www.rava.com/api/cotizacion.php?e=${encodeURIComponent(sym)}`,
-              { signal: AbortSignal.timeout(5000) }
-            );
-            if (!r.ok) continue;
-            const d = await r.json();
-            const precio = d.c || d.ultimo || d.price || 0;   // último precio
-            if (!precio || precio <= 0) continue;
-            PRICES[tk] = isUSD ? precio : precio / CCL_RATE;
-            PRICE_SOURCE[tk] = isUSD ? 'RAVA-USD' : 'RAVA÷CCL';
-            fetched++;
-            console.log('[RAVA]', tk, '(sym:', sym+')', PRICE_SOURCE[tk],
-              '→ $'+PRICES[tk].toFixed(4), isUSD ? '' : `(${precio} ARS ÷ ${CCL_RATE})`);
-            break;
-          }
-        } catch(e) { /* silencioso por ticker */ }
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(tk)}.BA?interval=1d&range=1d`;
+          const r = await fetch(url, {signal: AbortSignal.timeout(6000)});
+          if (!r.ok) return;
+          const d = await r.json();
+          const precio = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
+          if (!precio || precio <= 0) return;
+          // Yahoo .BA siempre devuelve ARS → dividir por CCL
+          PRICES[tk] = precio / CCL_RATE;
+          PRICE_SOURCE[tk] = 'YF÷CCL';
+          fetched++;
+          console.log('[YF]', tk, '→ $'+PRICES[tk].toFixed(4), `(${precio} ARS ÷ ${CCL_RATE})`);
+        } catch(e) { /* silencioso */ }
       }));
     }
 
