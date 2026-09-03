@@ -1543,7 +1543,8 @@ async function fetchQuotes() {
     if (bymaTks.length) {
       // ── Remap: ticker del sheet → ticker real en BYMA/Stooq ────────────
       const BYMA_REMAP = {
-        VALO: 'VALOD',  // Banco de Valores: el ticker en BYMA es VALOD, no VALO
+        VALO: 'VALOD',  // Banco de Valores
+        SPCX: 'SPCXD',  // SpaceX CEDEAR (privada, sin ticker US)
       };
 
       // ── Tabla de CEDEARs: ticker BYMA → {ticker US en Stooq, ratio CEDEAR/acción} ──
@@ -1552,9 +1553,9 @@ async function fetchQuotes() {
       const CEDEAR_TABLE = {
         MELI:  {us:'MELI',  ratio:140},
         META:  {us:'META',  ratio:25},
-        BIDU:  {us:'BIDU',  ratio:10},
-        HOOD:  {us:'HOOD',  ratio:10},
-        COIN:  {us:'COIN',  ratio:33},
+        BIDU:  {us:'BIDU',  ratio:11},  // 1 acción BIDU = 11 CEDEARs (verificado Balanz)
+        HOOD:  {us:'HOOD',  ratio:29},  // 1 acción HOOD = 29 CEDEARs (verificado Balanz)
+        COIN:  {us:'COIN',  ratio:27},  // 1 acción COIN = 27 CEDEARs (verificado Balanz)
         MSFT:  {us:'MSFT',  ratio:10},
         AAPL:  {us:'AAPL',  ratio:15},
         GOOGL: {us:'GOOGL', ratio:5},
