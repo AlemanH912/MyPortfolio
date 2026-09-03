@@ -1541,85 +1541,95 @@ async function fetchQuotes() {
     const bymaTks = Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET.has(tk));
 
     if (bymaTks.length) {
-      // ── Intento 1: BYMA via corsproxy.io (CEDEARs tienen precio en USD directo) ──
-      const bymaMap = {};
-      try {
-        const PX = 'https://corsproxy.io/?url=';
-        const BB = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/';
-        const bymaPost = (ep) => fetch(PX + encodeURIComponent(BB + ep), {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body:'{}', signal:AbortSignal.timeout(9000)
-        }).then(r => r.ok ? r.json() : null).catch(() => null);
-        const [r1, r2] = await Promise.all([bymaPost('leading-equity'), bymaPost('cedears')]);
-        [r1, r2].forEach(d => {
-          if (!d) return;
-          (Array.isArray(d) ? d : (d.data || [])).forEach(it => {
-            const sym = (it.symbol||'').trim();
-            const p = it.trade > 0 ? it.trade : (it.closingPrice || it.previousClosingPrice || 0);
-            if (sym && p > 0) bymaMap[sym] = {p, open: it.openingPrice || it.previousClosingPrice || 0};
-          });
-        });
-        console.log('[BYMA] ok -', Object.keys(bymaMap).length, 'símbolos');
-      } catch(e) { console.warn('[BYMA]', e.message); }
+      // ── Tabla de CEDEARs: ticker BYMA → {ticker US en Stooq, ratio CEDEAR/acción} ──
+      // Precio CEDEAR (USD) = precio US (USD) / ratio
+      const CEDEAR_TABLE = {
+        MELI:  {us:'MELI',  ratio:140},
+        META:  {us:'META',  ratio:25},
+        BIDU:  {us:'BIDU',  ratio:10},
+        HOOD:  {us:'HOOD',  ratio:10},
+        COIN:  {us:'COIN',  ratio:33},
+        MSFT:  {us:'MSFT',  ratio:10},
+        AAPL:  {us:'AAPL',  ratio:15},
+        GOOGL: {us:'GOOGL', ratio:5},
+        GOOG:  {us:'GOOG',  ratio:5},
+        AMZN:  {us:'AMZN',  ratio:10},
+        TSLA:  {us:'TSLA',  ratio:10},
+        NVDA:  {us:'NVDA',  ratio:25},
+        NFLX:  {us:'NFLX',  ratio:10},
+        DISN:  {us:'DIS',   ratio:5},
+        AMGN:  {us:'AMGN',  ratio:5},
+        WMT:   {us:'WMT',   ratio:5},
+        EBAY:  {us:'EBAY',  ratio:5},
+        PYPL:  {us:'PYPL',  ratio:5},
+        INTC:  {us:'INTC',  ratio:5},
+        QCOM:  {us:'QCOM',  ratio:5},
+        CSCO:  {us:'CSCO',  ratio:5},
+        ARGT:  {us:'ARGT',  ratio:1},  // iShares MSCI Argentina ETF
+      };
 
-      // ── Función: precio ARS via múltiples fuentes en paralelo ────────────
-      // Prueba simultáneamente Stooq + Yahoo (3 proxies) + directo; gana el primero.
-      const fetchARS = (sym) => new Promise(resolve => {
-        let done = false; let pending = 0;
-        const finish = (p) => { if (!done && p > 0) { done = true; resolve(p); } };
-        const tryUrl = (url, parse) => {
-          pending++;
-          fetch(url, {signal:AbortSignal.timeout(10000)})
-            .then(r => r.ok ? (parse === 'csv' ? r.text() : r.json()) : null)
-            .then(d => {
-              if (!d) return;
-              let p = 0;
-              if (parse === 'csv') {
-                // Stooq CSV: Date,Open,High,Low,Close,Volume
-                const lines = d.trim().split('\n');
-                if (lines.length >= 2) p = parseFloat(lines[lines.length-1].split(',')[4]);
-              } else {
-                p = d?.chart?.result?.[0]?.meta?.regularMarketPrice || 0;
-              }
-              if (p > 0) finish(p);
-            })
-            .catch(() => {})
-            .finally(() => { pending--; if (pending === 0 && !done) resolve(0); });
-        };
-        const s = sym.toLowerCase();
-        const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}.BA?interval=1d&range=1d`;
-        tryUrl(`https://stooq.com/q/d/l/?s=${s}.ba&i=d`, 'csv');
-        tryUrl(`https://corsproxy.io/?url=${encodeURIComponent(yfUrl)}`, 'json');
-        tryUrl(`https://api.allorigins.win/raw?url=${encodeURIComponent(yfUrl)}`, 'json');
-        tryUrl(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yfUrl)}`, 'json');
-        tryUrl(yfUrl, 'json'); // directo — puede funcionar desde file://
-        setTimeout(() => { if (!done) resolve(0); }, 11000);
-      });
+      // ── Stooq helper — tiene CORS nativo, devuelve CSV ──────────────────
+      // sym ejemplo: 'meli.us' o 'harg.ba'
+      const stooq = async (sym) => {
+        try {
+          const r = await fetch(`https://stooq.com/q/d/l/?s=${sym.toLowerCase()}&i=d`, {signal:AbortSignal.timeout(9000)});
+          if (!r.ok) return 0;
+          const csv = await r.text();
+          const lines = csv.trim().split('\n');
+          if (lines.length < 2) return 0;
+          const cols = lines[lines.length-1].split(',');
+          const close = parseFloat(cols[4]);
+          return close > 0 ? close : 0;
+        } catch(e) { return 0; }
+      };
 
-      // ── Asignar precios: BYMA primero, luego fetchARS ────────────────────
+      // ── Yahoo Finance fallback via proxies ───────────────────────────────
+      const yfFallback = async (sym) => {
+        const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}.BA?interval=1d&range=1d`;
+        const proxies = [
+          `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+          `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+          url,
+        ];
+        for (const px of proxies) {
+          try {
+            const r = await fetch(px, {signal:AbortSignal.timeout(8000)});
+            if (!r.ok) continue;
+            const d = await r.json();
+            const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice || 0;
+            if (p > 0) return p;
+          } catch(e) {}
+        }
+        return 0;
+      };
+
+      // ── Asignar precio a cada ticker ─────────────────────────────────────
       await Promise.allSettled(bymaTks.map(async tk => {
-        const cable = bymaMap[tk+'C'] || bymaMap[tk+'D']; // CEDEAR cable → USD directo
-        const ars   = bymaMap[tk];
-        if (cable) {
-          PRICES[tk] = cable.p; PRICE_SOURCE[tk] = 'BYMA-USD';
-          if (cable.open > 0) PRICE_CHANGES[tk] = (cable.p - cable.open) / cable.open;
-          fetched++; console.log('[BYMA-USD]', tk, PRICES[tk]); return;
+        const cedear = CEDEAR_TABLE[tk];
+
+        if (cedear) {
+          // CEDEAR: precio US / ratio = precio USD del CEDEAR
+          const usP = await stooq(cedear.us + '.us');
+          if (usP > 0) {
+            PRICES[tk] = usP / cedear.ratio;
+            PRICE_SOURCE[tk] = `TV÷${cedear.ratio}`;
+            fetched++;
+            console.log(`[CEDEAR] ${tk} = ${cedear.us} $${usP} ÷ ${cedear.ratio} = $${PRICES[tk].toFixed(4)}`);
+            return;
+          }
         }
-        if (ars) {
-          PRICES[tk] = ars.p / CCL_RATE; PRICE_SOURCE[tk] = 'BYMA÷CCL';
-          if (ars.open > 0) PRICE_CHANGES[tk] = (ars.p - ars.open) / ars.open;
-          fetched++; console.log('[BYMA÷CCL]', tk, PRICES[tk]); return;
-        }
-        // Strip cable suffix para buscar en Yahoo/Stooq (MELIC → MELI.BA)
-        const sym = tk.match(/^(.+)[CD]$/) ? tk.slice(0,-1) : tk;
-        const arsP = await fetchARS(sym);
+
+        // Acción argentina o CEDEAR sin ratio conocido: ARS / CCL
+        const sym = tk.endsWith('C') || tk.endsWith('D') ? tk.slice(0,-1) : tk;
+        let arsP = await stooq(sym + '.ba');
+        if (arsP <= 0) arsP = await yfFallback(sym); // Yahoo como último recurso
         if (arsP > 0) {
           PRICES[tk] = arsP / CCL_RATE;
-          PRICE_SOURCE[tk] = 'YF÷CCL';
+          PRICE_SOURCE[tk] = 'ARS÷CCL';
           fetched++;
-          console.log('[YF÷CCL]', tk, PRICES[tk], `(${arsP}÷${CCL_RATE})`);
+          console.log(`[ARS÷CCL] ${tk} = ${arsP} ARS ÷ ${CCL_RATE} = $${PRICES[tk].toFixed(4)}`);
         } else {
-          console.warn('[PRECIO]', tk, '— sin cotización en ninguna fuente');
+          console.warn(`[PRECIO] ${tk} — sin cotización en ninguna fuente`);
         }
       }));
     }
