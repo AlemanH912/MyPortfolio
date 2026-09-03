@@ -1296,7 +1296,7 @@ const PRICES = {
   ETH:2500, SOL:170, DOT:5, RAY:1.5, ADA:0.7,
 };
 // Tipo de cambio CCL (ARS/USD) — se actualiza con fetchQuotes para convertir precios BYMA
-let CCL_RATE = 1300;
+let CCL_RATE = 1975;
 
 // Cambio 24h en % (se actualiza con fetchQuotes)
 const PRICE_CHANGES = {};
@@ -1344,11 +1344,33 @@ function saveDailyPrices() {
   const today = new Date().toISOString().slice(0,10);
   const stored = JSON.parse(localStorage.getItem('dailyPrices')||'{}');
   if (stored.date !== today) {
-    // Nuevo día: guardar precios actuales como apertura
     const snap = {};
     Object.keys(POSITIONS).forEach(tk => { if (PRICES[tk]) snap[tk] = PRICES[tk]; });
     localStorage.setItem('dailyPrices', JSON.stringify({date:today, prices:snap}));
   }
+}
+
+// Caché persistente de cotizaciones (independiente del día — sirve como último precio válido)
+function savePriceCache() {
+  try {
+    const cache = {};
+    Object.keys(POSITIONS).forEach(tk => {
+      if (PRICE_SOURCE[tk] && PRICE_SOURCE[tk] !== 'FIXED' && PRICES[tk] > 0)
+        cache[tk] = {p: PRICES[tk], src: PRICE_SOURCE[tk], ts: Date.now()};
+    });
+    localStorage.setItem('priceCache', JSON.stringify(cache));
+  } catch(e) {}
+}
+function loadPriceCache() {
+  try {
+    const cache = JSON.parse(localStorage.getItem('priceCache')||'{}');
+    Object.entries(cache).forEach(([tk, {p, src}]) => {
+      if (!PRICE_SOURCE[tk] && p > 0) {
+        PRICES[tk] = p;
+        PRICE_SOURCE[tk] = src + '(cache)';
+      }
+    });
+  } catch(e) {}
 }
 
 // Calcula PRICE_CHANGES desde el snapshot diario para tickers que no tienen dato de API
@@ -1486,6 +1508,10 @@ async function fetchQuotes() {
         if (ccl > 100) { CCL_RATE = ccl; console.log('[CCL]', ccl); }
       }
     } catch(e) { console.warn('CCL fetch fallback:', CCL_RATE); }
+    document.getElementById('cclDisplay').textContent = `CCL: $${CCL_RATE.toLocaleString('es-AR',{maximumFractionDigits:0})}`;
+
+    // Cargar caché de precios anteriores (se sobrescribe si el fetch de hoy funciona)
+    loadPriceCache();
 
     // CoinGecko — precio + cambio 24h para crypto
     const cryptos = Object.keys(POSITIONS).filter(tk => CG_IDS[tk]);
@@ -1507,7 +1533,7 @@ async function fetchQuotes() {
     // ── Acciones / CEDEARs BYMA ──────────────────────────────────
     const CASH_SET = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
 
-    // Forzar precio 1 a tickers de efectivo (por si el fetch de Sheets falló)
+    // Efectivo: siempre $1
     Object.keys(POSITIONS).forEach(tk => {
       if (CASH_SET.has(tk)) { PRICES[tk] = 1; PRICE_SOURCE[tk] = 'FIXED'; fetched++; }
     });
@@ -1515,7 +1541,7 @@ async function fetchQuotes() {
     const bymaTks = Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET.has(tk));
 
     if (bymaTks.length) {
-      // Intento 1: BYMA via corsproxy.io (CEDEARs tienen precio directo en USD)
+      // ── Intento 1: BYMA via corsproxy.io (CEDEARs tienen precio en USD directo) ──
       const bymaMap = {};
       try {
         const PX = 'https://corsproxy.io/?url=';
@@ -1533,70 +1559,82 @@ async function fetchQuotes() {
             if (sym && p > 0) bymaMap[sym] = {p, open: it.openingPrice || it.previousClosingPrice || 0};
           });
         });
-        console.log('[BYMA] símbolos encontrados:', Object.keys(bymaMap).length);
+        console.log('[BYMA] ok -', Object.keys(bymaMap).length, 'símbolos');
       } catch(e) { console.warn('[BYMA]', e.message); }
 
-      // Función: obtener precio ARS de Yahoo Finance via varios proxies
-      const fetchYF = async (sym) => {
-        const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}.BA?interval=1d&range=1d`;
-        const proxies = [
-          `https://corsproxy.io/?url=${encodeURIComponent(yfUrl)}`,
-          `https://api.allorigins.win/raw?url=${encodeURIComponent(yfUrl)}`,
-          yfUrl,  // directo — puede funcionar desde file://
-        ];
-        for (const url of proxies) {
-          try {
-            const r = await fetch(url, {signal: AbortSignal.timeout(8000)});
-            if (!r.ok) continue;
-            const d = await r.json();
-            const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-            if (p && p > 0) return p;
-          } catch(e) {}
-        }
-        return null;
-      };
+      // ── Función: precio ARS via múltiples fuentes en paralelo ────────────
+      // Prueba simultáneamente Stooq + Yahoo (3 proxies) + directo; gana el primero.
+      const fetchARS = (sym) => new Promise(resolve => {
+        let done = false; let pending = 0;
+        const finish = (p) => { if (!done && p > 0) { done = true; resolve(p); } };
+        const tryUrl = (url, parse) => {
+          pending++;
+          fetch(url, {signal:AbortSignal.timeout(10000)})
+            .then(r => r.ok ? (parse === 'csv' ? r.text() : r.json()) : null)
+            .then(d => {
+              if (!d) return;
+              let p = 0;
+              if (parse === 'csv') {
+                // Stooq CSV: Date,Open,High,Low,Close,Volume
+                const lines = d.trim().split('\n');
+                if (lines.length >= 2) p = parseFloat(lines[lines.length-1].split(',')[4]);
+              } else {
+                p = d?.chart?.result?.[0]?.meta?.regularMarketPrice || 0;
+              }
+              if (p > 0) finish(p);
+            })
+            .catch(() => {})
+            .finally(() => { pending--; if (pending === 0 && !done) resolve(0); });
+        };
+        const s = sym.toLowerCase();
+        const yfUrl = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}.BA?interval=1d&range=1d`;
+        tryUrl(`https://stooq.com/q/d/l/?s=${s}.ba&i=d`, 'csv');
+        tryUrl(`https://corsproxy.io/?url=${encodeURIComponent(yfUrl)}`, 'json');
+        tryUrl(`https://api.allorigins.win/raw?url=${encodeURIComponent(yfUrl)}`, 'json');
+        tryUrl(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(yfUrl)}`, 'json');
+        tryUrl(yfUrl, 'json'); // directo — puede funcionar desde file://
+        setTimeout(() => { if (!done) resolve(0); }, 11000);
+      });
 
-      // Asignar precios: BYMA primero, Yahoo como respaldo
+      // ── Asignar precios: BYMA primero, luego fetchARS ────────────────────
       await Promise.allSettled(bymaTks.map(async tk => {
-        // Buscar en BYMA (cable C/D → USD directo; base → ARS ÷ CCL)
-        const cable = bymaMap[tk+'C'] || bymaMap[tk+'D'];
+        const cable = bymaMap[tk+'C'] || bymaMap[tk+'D']; // CEDEAR cable → USD directo
         const ars   = bymaMap[tk];
         if (cable) {
           PRICES[tk] = cable.p; PRICE_SOURCE[tk] = 'BYMA-USD';
           if (cable.open > 0) PRICE_CHANGES[tk] = (cable.p - cable.open) / cable.open;
-          fetched++; console.log('[BYMA-USD]', tk, '$'+PRICES[tk].toFixed(4)); return;
+          fetched++; console.log('[BYMA-USD]', tk, PRICES[tk]); return;
         }
         if (ars) {
           PRICES[tk] = ars.p / CCL_RATE; PRICE_SOURCE[tk] = 'BYMA÷CCL';
           if (ars.open > 0) PRICE_CHANGES[tk] = (ars.p - ars.open) / ars.open;
-          fetched++; console.log('[BYMA÷CCL]', tk, '$'+PRICES[tk].toFixed(4)); return;
+          fetched++; console.log('[BYMA÷CCL]', tk, PRICES[tk]); return;
         }
-
-        // Respaldo: Yahoo Finance .BA (ARS ÷ CCL)
-        // Para tickers cable (ej MELIC) buscar sin la C (MELI.BA)
-        const yfSym = tk.match(/^(.+)[CD]$/) ? tk.slice(0,-1) : tk;
-        const arsPrice = await fetchYF(yfSym);
-        if (arsPrice && arsPrice > 0) {
-          PRICES[tk] = arsPrice / CCL_RATE;
+        // Strip cable suffix para buscar en Yahoo/Stooq (MELIC → MELI.BA)
+        const sym = tk.match(/^(.+)[CD]$/) ? tk.slice(0,-1) : tk;
+        const arsP = await fetchARS(sym);
+        if (arsP > 0) {
+          PRICES[tk] = arsP / CCL_RATE;
           PRICE_SOURCE[tk] = 'YF÷CCL';
           fetched++;
-          console.log('[YF÷CCL]', tk, '$'+PRICES[tk].toFixed(4), `(${arsPrice} ARS ÷ ${CCL_RATE})`);
+          console.log('[YF÷CCL]', tk, PRICES[tk], `(${arsP}÷${CCL_RATE})`);
         } else {
-          console.warn('[PRECIO]', tk, 'sin cotización — usando precio promedio');
+          console.warn('[PRECIO]', tk, '— sin cotización en ninguna fuente');
         }
       }));
     }
 
-    // Respaldo: calcular variación desde precios guardados del día anterior
+    // Variación desde precio de apertura del día
     loadPriceChangesFromDaily();
 
     const ts = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
     document.getElementById('lastUpdate').textContent = `Actualizado: ${ts}`;
     document.getElementById('cclDisplay').textContent = `CCL: $${CCL_RATE.toLocaleString('es-AR',{maximumFractionDigits:0})}`;
     toast(`✓ ${fetched} cotizaciones actualizadas`);
-  } catch(e) { toast('⚠ Error al actualizar', true); }
+  } catch(e) { console.error('fetchQuotes:', e); toast('⚠ Error al actualizar', true); }
   btn.classList.remove('loading');
   saveDailyPrices();
+  savePriceCache();
   renderAll();
   renderMovers();
 }
