@@ -1571,11 +1571,21 @@ async function fetchQuotes() {
         INTC:  {us:'INTC',  ratio:5},
         QCOM:  {us:'QCOM',  ratio:5},
         CSCO:  {us:'CSCO',  ratio:5},
-        ARGT:  {us:'ARGT',  ratio:1},  // iShares MSCI Argentina ETF
+        ARGT:  {us:'ARGT',  ratio:1},   // iShares MSCI Argentina ETF
+        // ADRs argentinos en NASDAQ/NYSE (1 ADR = 10 acciones locales → ratio 10)
+        GGAL:  {us:'GGAL',  ratio:10},  // Grupo Financiero Galicia ADR
+        SUPV:  {us:'SUPV',  ratio:10},  // Grupo Supervielle ADR
+        BMA:   {us:'BMA',   ratio:10},  // Banco Macro ADR
+        CEPU:  {us:'CEPU',  ratio:10},  // Central Puerto ADR
+        EDN:   {us:'EDN',   ratio:20},  // Edenor ADR
+        PAM:   {us:'PAM',   ratio:25},  // Pampa Energía ADR (diferente al CEDEAR PAMP)
+        LOMA:  {us:'LOMA',  ratio:5},   // Loma Negra ADR
+        CRESY: {us:'CRESY', ratio:5},   // Cresud ADR
+        IRS:   {us:'IRS',   ratio:10},  // IRSA ADR
+        DESP:  {us:'DESP',  ratio:1},   // Despegar ADR
       };
 
       // ── Stooq helper — tiene CORS nativo, devuelve CSV ──────────────────
-      // sym ejemplo: 'meli.us' o 'harg.ba'
       const stooq = async (sym) => {
         try {
           const r = await fetch(`https://stooq.com/q/d/l/?s=${sym.toLowerCase()}&i=d`, {signal:AbortSignal.timeout(9000)});
@@ -1589,9 +1599,9 @@ async function fetchQuotes() {
         } catch(e) { return 0; }
       };
 
-      // ── Yahoo Finance fallback via proxies ───────────────────────────────
-      const yfFallback = async (sym) => {
-        const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}.BA?interval=1d&range=1d`;
+      // ── Yahoo Finance helper: ticker sin sufijo (US stocks) o con .BA ────
+      const yfPrice = async (sym) => {
+        const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
         const proxies = [
           `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
           `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
@@ -1609,13 +1619,27 @@ async function fetchQuotes() {
         return 0;
       };
 
+      // ── Precio US: Stooq primero, Yahoo Finance como respaldo ─────────────
+      const fetchUS = async (usTicker) => {
+        let p = await stooq(usTicker + '.us');
+        if (p > 0) return p;
+        return yfPrice(usTicker); // Yahoo US (sin .BA)
+      };
+
+      // ── Precio ARS (Argentina .BA): Stooq primero, Yahoo .BA como respaldo ──
+      const fetchARS = async (sym) => {
+        let p = await stooq(sym + '.ba');
+        if (p > 0) return p;
+        return yfPrice(sym + '.BA'); // Yahoo con sufijo .BA
+      };
+
       // ── Asignar precio a cada ticker ─────────────────────────────────────
       await Promise.allSettled(bymaTks.map(async tk => {
         const cedear = CEDEAR_TABLE[tk];
 
         if (cedear) {
           // CEDEAR con ticker US conocido: precio US / ratio = precio USD del CEDEAR
-          const usP = await stooq(cedear.us + '.us');
+          const usP = await fetchUS(cedear.us);
           if (usP > 0) {
             PRICES[tk] = usP / cedear.ratio;
             PRICE_SOURCE[tk] = `US÷${cedear.ratio}`;
@@ -1629,8 +1653,7 @@ async function fetchQuotes() {
         // Usar remap si el ticker del sheet difiere del ticker real en BYMA (ej VALO→VALOD)
         const bymaT = BYMA_REMAP[tk] || tk;
         const stooqSym = bymaT.endsWith('C') || bymaT.endsWith('D') ? bymaT.slice(0,-1) : bymaT;
-        let arsP = await stooq(stooqSym + '.ba');
-        if (arsP <= 0) arsP = await yfFallback(stooqSym); // Yahoo como último recurso
+        const arsP = await fetchARS(stooqSym);
         if (arsP > 0) {
           PRICES[tk] = arsP / CCL_RATE;
           PRICE_SOURCE[tk] = 'ARS÷CCL';
