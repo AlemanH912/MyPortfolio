@@ -1541,10 +1541,17 @@ async function fetchQuotes() {
     const bymaTks = Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET.has(tk));
 
     if (bymaTks.length) {
-      // ── Remap: ticker del sheet → ticker real en BYMA/Stooq ────────────
+      // ── Remap: ticker del sheet → ticker real en BYMA (mercado dólar) ──
+      // Se usa como fallback ARS÷CCL cuando el fetch del ticker US falla
       const BYMA_REMAP = {
-        VALO: 'VALOD',  // Banco de Valores
-        SPCX: 'SPCXD',  // SpaceX CEDEAR (privada, sin ticker US)
+        VALO: 'VALOD',   // Banco de Valores
+        SPCX: 'SPCXD',  // SpaceX (privada, sin ticker US)
+        HOOD: 'HOODD',  // Robinhood CEDEAR mercado dólar
+        BIDU: 'BIDUD',  // Baidu CEDEAR mercado dólar
+        COIN: 'COIND',  // Coinbase CEDEAR mercado dólar
+        GGAL: 'GGAL',   // Galicia (cotiza local en ARS, sin D)
+        SUPV: 'SUPV',   // Supervielle (cotiza local)
+        BMA:  'BMA',    // Banco Macro (cotiza local)
       };
 
       // ── Tabla de CEDEARs: ticker BYMA → {ticker US en Stooq, ratio CEDEAR/acción} ──
@@ -1650,11 +1657,10 @@ async function fetchQuotes() {
           }
         }
 
-        // Acción argentina pura o CEDEAR privado (SpaceX etc.): ARS / CCL
-        // Usar remap si el ticker del sheet difiere del ticker real en BYMA (ej VALO→VALOD)
+        // ARS÷CCL: precio local BYMA (ticker real, sin strip de sufijos)
+        // Aplica tanto a acciones locales como a CEDEARs que fallaron el fetch US
         const bymaT = BYMA_REMAP[tk] || tk;
-        const stooqSym = bymaT.endsWith('C') || bymaT.endsWith('D') ? bymaT.slice(0,-1) : bymaT;
-        const arsP = await fetchARS(stooqSym);
+        const arsP = await fetchARS(bymaT);
         if (arsP > 0) {
           PRICES[tk] = arsP / CCL_RATE;
           PRICE_SOURCE[tk] = 'ARS÷CCL';
