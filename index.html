@@ -1530,10 +1530,8 @@ async function fetchQuotes() {
       }
     }
 
-    // ── Acciones / CEDEARs BYMA ──────────────────────────────────
+    // ── Acciones / CEDEARs: leer de hoja PRECIOS ────────────────────────
     const CASH_SET = new Set(['USD','USDT','USDC','ARS','DOLAR','DOLARES','DAI','BUSD']);
-
-    // Efectivo: siempre $1
     Object.keys(POSITIONS).forEach(tk => {
       if (CASH_SET.has(tk)) { PRICES[tk] = 1; PRICE_SOURCE[tk] = 'FIXED'; fetched++; }
     });
@@ -1541,135 +1539,58 @@ async function fetchQuotes() {
     const bymaTks = Object.keys(POSITIONS).filter(tk => !CG_IDS[tk] && !CASH_SET.has(tk));
 
     if (bymaTks.length) {
-      // ── Remap: ticker del sheet → ticker real en BYMA (mercado dólar) ──
-      // Se usa como fallback ARS÷CCL cuando el fetch del ticker US falla
-      const BYMA_REMAP = {
-        VALO: 'VALOD',   // Banco de Valores
-        SPCX: 'SPCXD',  // SpaceX (privada, sin ticker US)
-        HOOD: 'HOODD',  // Robinhood CEDEAR mercado dólar
-        BIDU: 'BIDUD',  // Baidu CEDEAR mercado dólar
-        COIN: 'COIND',  // Coinbase CEDEAR mercado dólar
-        GGAL: 'GGAL',   // Galicia (cotiza local en ARS, sin D)
-        SUPV: 'SUPV',   // Supervielle (cotiza local)
-        BMA:  'BMA',    // Banco Macro (cotiza local)
-      };
-
-      // ── Tabla de CEDEARs: ticker BYMA → {ticker US en Stooq, ratio CEDEAR/acción} ──
-      // Precio CEDEAR (USD) = precio US (USD) / ratio
-      // SPCX (SpaceX, privada) y similares: no tienen ticker US → caen al path ARS÷CCL
-      const CEDEAR_TABLE = {
-        MELI:  {us:'MELI',  ratio:140},
-        META:  {us:'META',  ratio:25},
-        BIDU:  {us:'BIDU',  ratio:11},  // 1 acción BIDU = 11 CEDEARs (verificado Balanz)
-        HOOD:  {us:'HOOD',  ratio:29},  // 1 acción HOOD = 29 CEDEARs (verificado Balanz)
-        COIN:  {us:'COIN',  ratio:27},  // 1 acción COIN = 27 CEDEARs (verificado Balanz)
-        MSFT:  {us:'MSFT',  ratio:10},
-        AAPL:  {us:'AAPL',  ratio:15},
-        GOOGL: {us:'GOOGL', ratio:5},
-        GOOG:  {us:'GOOG',  ratio:5},
-        AMZN:  {us:'AMZN',  ratio:10},
-        TSLA:  {us:'TSLA',  ratio:10},
-        NVDA:  {us:'NVDA',  ratio:25},
-        NFLX:  {us:'NFLX',  ratio:10},
-        DISN:  {us:'DIS',   ratio:5},
-        AMGN:  {us:'AMGN',  ratio:5},
-        WMT:   {us:'WMT',   ratio:5},
-        EBAY:  {us:'EBAY',  ratio:5},
-        PYPL:  {us:'PYPL',  ratio:5},
-        INTC:  {us:'INTC',  ratio:5},
-        QCOM:  {us:'QCOM',  ratio:5},
-        CSCO:  {us:'CSCO',  ratio:5},
-        ARGT:  {us:'ARGT',  ratio:1},   // iShares MSCI Argentina ETF
-        // ADRs argentinos en NASDAQ/NYSE (1 ADR = 10 acciones locales → ratio 10)
-        GGAL:  {us:'GGAL',  ratio:10},  // Grupo Financiero Galicia ADR
-        SUPV:  {us:'SUPV',  ratio:10},  // Grupo Supervielle ADR
-        BMA:   {us:'BMA',   ratio:10},  // Banco Macro ADR
-        CEPU:  {us:'CEPU',  ratio:10},  // Central Puerto ADR
-        EDN:   {us:'EDN',   ratio:20},  // Edenor ADR
-        PAM:   {us:'PAM',   ratio:25},  // Pampa Energía ADR (diferente al CEDEAR PAMP)
-        LOMA:  {us:'LOMA',  ratio:5},   // Loma Negra ADR
-        CRESY: {us:'CRESY', ratio:5},   // Cresud ADR
-        IRS:   {us:'IRS',   ratio:10},  // IRSA ADR
-        DESP:  {us:'DESP',  ratio:1},   // Despegar ADR
-      };
-
-      // ── Stooq helper — tiene CORS nativo, devuelve CSV ──────────────────
-      const stooq = async (sym) => {
+      if (!accessToken) {
+        toast('⚠ Iniciá sesión para ver precios de acciones', true);
+      } else {
         try {
-          const r = await fetch(`https://stooq.com/q/d/l/?s=${sym.toLowerCase()}&i=d`, {signal:AbortSignal.timeout(9000)});
-          if (!r.ok) return 0;
-          const csv = await r.text();
-          const lines = csv.trim().split('\n');
-          if (lines.length < 2) return 0;
-          const cols = lines[lines.length-1].split(',');
-          const close = parseFloat(cols[4]);
-          return close > 0 ? close : 0;
-        } catch(e) { return 0; }
-      };
+          const range = encodeURIComponent('PRECIOS!A:E');
+          const url   = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}`;
+          const r     = await fetch(url, {
+            headers: { Authorization: 'Bearer ' + accessToken },
+            signal:  AbortSignal.timeout(8000)
+          });
 
-      // ── Yahoo Finance helper: ticker sin sufijo (US stocks) o con .BA ────
-      const yfPrice = async (sym) => {
-        const url = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
-        const proxies = [
-          `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-          `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-          url,
-        ];
-        for (const px of proxies) {
-          try {
-            const r = await fetch(px, {signal:AbortSignal.timeout(8000)});
-            if (!r.ok) continue;
-            const d = await r.json();
-            const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice || 0;
-            if (p > 0) return p;
-          } catch(e) {}
-        }
-        return 0;
-      };
+          if (r.ok) {
+            const data = await r.json();
+            const rows = (data.values || []).slice(1); // skip header
 
-      // ── Precio US: Stooq primero, Yahoo Finance como respaldo ─────────────
-      const fetchUS = async (usTicker) => {
-        let p = await stooq(usTicker + '.us');
-        if (p > 0) return p;
-        return yfPrice(usTicker); // Yahoo US (sin .BA)
-      };
+            if (rows.length === 0) {
+              toast('⚠ Hoja PRECIOS vacía — abrí la hoja y ejecutá 📈 Portfolio > Actualizar precios', true);
+            } else {
+              // Construir mapa ticker → precio
+              const sheetPrices = {};
+              let lastTs = '';
+              rows.forEach(row => {
+                const ticker   = String(row[0] || '').trim().toUpperCase();
+                const priceStr = String(row[1] || '').replace(',', '.');
+                const ts       = row[4] || '';
+                const p        = parseFloat(priceStr);
+                if (ticker && p > 0) sheetPrices[ticker] = p;
+                if (ts) lastTs = ts;
+              });
 
-      // ── Precio ARS (Argentina .BA): Stooq primero, Yahoo .BA como respaldo ──
-      const fetchARS = async (sym) => {
-        let p = await stooq(sym + '.ba');
-        if (p > 0) return p;
-        return yfPrice(sym + '.BA'); // Yahoo con sufijo .BA
-      };
+              bymaTks.forEach(tk => {
+                if (sheetPrices[tk] > 0) {
+                  PRICES[tk] = sheetPrices[tk];
+                  PRICE_SOURCE[tk] = 'Sheet';
+                  fetched++;
+                } else {
+                  console.warn(`[PRECIOS] ${tk} no encontrado en hoja PRECIOS`);
+                }
+              });
 
-      // ── Asignar precio a cada ticker (secuencial para no saturar Stooq) ──
-      const sleep = ms => new Promise(r => setTimeout(r, ms));
-      for (const tk of bymaTks) {
-        const cedear = CEDEAR_TABLE[tk];
-
-        if (cedear) {
-          const usP = await fetchUS(cedear.us);
-          if (usP > 0) {
-            PRICES[tk] = usP / cedear.ratio;
-            PRICE_SOURCE[tk] = `US÷${cedear.ratio}`;
-            fetched++;
-            console.log(`[CEDEAR] ${tk} = ${cedear.us} $${usP} ÷ ${cedear.ratio} = $${PRICES[tk].toFixed(4)}`);
-            await sleep(350);
-            continue;
+              if (lastTs) {
+                document.getElementById('lastUpdate').textContent = `Sheet: ${lastTs}`;
+              }
+            }
+          } else {
+            console.warn('PRECIOS sheet HTTP', r.status);
+            toast('⚠ Hoja PRECIOS no encontrada — ejecutá el Apps Script primero', true);
           }
+        } catch(e) {
+          console.warn('PRECIOS read error:', e);
+          toast('⚠ Error leyendo hoja PRECIOS', true);
         }
-
-        // ARS÷CCL fallback (acciones locales o CEDEAR sin precio US)
-        const bymaT = BYMA_REMAP[tk] || tk;
-        const arsP = await fetchARS(bymaT);
-        if (arsP > 0) {
-          PRICES[tk] = arsP / CCL_RATE;
-          PRICE_SOURCE[tk] = 'ARS÷CCL';
-          fetched++;
-          console.log(`[ARS÷CCL] ${tk}(${bymaT}) = ${arsP} ARS ÷ ${CCL_RATE} = $${PRICES[tk].toFixed(4)}`);
-        } else {
-          console.warn(`[PRECIO] ${tk} — sin cotización en ninguna fuente`);
-        }
-        await sleep(350);
       }
     }
 
