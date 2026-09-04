@@ -1641,24 +1641,24 @@ async function fetchQuotes() {
         return yfPrice(sym + '.BA'); // Yahoo con sufijo .BA
       };
 
-      // ── Asignar precio a cada ticker ─────────────────────────────────────
-      await Promise.allSettled(bymaTks.map(async tk => {
+      // ── Asignar precio a cada ticker (secuencial para no saturar Stooq) ──
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      for (const tk of bymaTks) {
         const cedear = CEDEAR_TABLE[tk];
 
         if (cedear) {
-          // CEDEAR con ticker US conocido: precio US / ratio = precio USD del CEDEAR
           const usP = await fetchUS(cedear.us);
           if (usP > 0) {
             PRICES[tk] = usP / cedear.ratio;
             PRICE_SOURCE[tk] = `US÷${cedear.ratio}`;
             fetched++;
             console.log(`[CEDEAR] ${tk} = ${cedear.us} $${usP} ÷ ${cedear.ratio} = $${PRICES[tk].toFixed(4)}`);
-            return;
+            await sleep(350);
+            continue;
           }
         }
 
-        // ARS÷CCL: precio local BYMA (ticker real, sin strip de sufijos)
-        // Aplica tanto a acciones locales como a CEDEARs que fallaron el fetch US
+        // ARS÷CCL fallback (acciones locales o CEDEAR sin precio US)
         const bymaT = BYMA_REMAP[tk] || tk;
         const arsP = await fetchARS(bymaT);
         if (arsP > 0) {
@@ -1669,7 +1669,8 @@ async function fetchQuotes() {
         } else {
           console.warn(`[PRECIO] ${tk} — sin cotización en ninguna fuente`);
         }
-      }));
+        await sleep(350);
+      }
     }
 
     // Variación desde precio de apertura del día
