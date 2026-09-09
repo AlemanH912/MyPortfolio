@@ -1289,19 +1289,19 @@ const POSITIONS = {
   MSFT:  { qty:58,      avgPrice:14.5828,  platform:'BALANZ',  type:'Acciones' },
 };
 
-// Precios actuales (se actualizan con la API)
+// Precios actuales (se actualizan con la API; solo crypto como fallback inicial)
 const PRICES = {
-  BTC:78890, MELI:15.48, ALUA:0.669, PAMP:3.429, HARG:1.20,
-  BIDU:11.83, TZX26:0.00261, SUPV:1.7076, BMA:7.51, MSFT:14.076,
-  ETH:2500, SOL:170, DOT:5, RAY:1.5, ADA:0.7,
+  BTC:78890, ETH:2500, SOL:170, DOT:5, RAY:1.5, ADA:0.7,
 };
 // Tipo de cambio CCL (ARS/USD) — se actualiza con fetchQuotes para convertir precios BYMA
 let CCL_RATE = 1975;
 
 // Cambio 24h en % (se actualiza con fetchQuotes)
 const PRICE_CHANGES = {};
-// Fuente del precio: 'USD' | 'ARS÷CCL' | 'CG' | undefined (sin actualizar)
+// Fuente del precio: 'CG' | 'Sheet' | 'avg' | 'init' | undefined (sin actualizar)
 const PRICE_SOURCE  = {};
+// Marcar precios iniciales como 'init' para no mostrar ⚠ antes del primer Actualizar
+Object.keys(PRICES).forEach(tk => { PRICE_SOURCE[tk] = 'init'; });
 
 // Take Profits (persistidos en localStorage)
 let TAKE_PROFITS = {};
@@ -2782,9 +2782,12 @@ function processSheetRows(rows) {
     }
   }
 
-  // Init prices for new tickers
+  // Init prices for new tickers (usa avgPrice como fallback, sin marcar como "sin actualizar")
   for (const tk of Object.keys(newPositions)) {
-    if (!PRICES[tk]) PRICES[tk] = newPositions[tk].avgPrice;
+    if (!PRICES[tk]) {
+      PRICES[tk] = newPositions[tk].avgPrice;
+      PRICE_SOURCE[tk] = 'avg';
+    }
   }
 
   renderAll();
