@@ -1303,6 +1303,42 @@ const PRICE_SOURCE  = {};
 // Marcar precios iniciales como 'init' para no mostrar ⚠ antes del primer Actualizar
 Object.keys(PRICES).forEach(tk => { PRICE_SOURCE[tk] = 'init'; });
 
+// Precios manuales (persistidos en localStorage, tienen prioridad sobre todo)
+let MANUAL_OVERRIDES = {};
+function loadManualPrices() {
+  try { MANUAL_OVERRIDES = JSON.parse(localStorage.getItem('manualPrices') || '{}'); } catch(e) { MANUAL_OVERRIDES = {}; }
+  Object.entries(MANUAL_OVERRIDES).forEach(([tk, p]) => {
+    if (p > 0) { PRICES[tk] = p; PRICE_SOURCE[tk] = 'manual'; }
+  });
+}
+function saveManualPrices() {
+  try { localStorage.setItem('manualPrices', JSON.stringify(MANUAL_OVERRIDES)); } catch(e) {}
+}
+function setManualPrice(tk, rawVal) {
+  const p = parseFloat(String(rawVal).replace(',', '.'));
+  if (!p || p <= 0) return;
+  MANUAL_OVERRIDES[tk] = p;
+  PRICES[tk] = p;
+  PRICE_SOURCE[tk] = 'manual';
+  saveManualPrices();
+  renderAll();
+  toast(`✓ ${tk} precio manual: $${p}`);
+}
+function editPriceInline(tk, el) {
+  const cur = PRICES[tk] || 0;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = cur.toString().replace('.', ',');
+  input.style.cssText = 'width:80px;background:var(--navy3);color:var(--text);border:1px solid var(--blue);border-radius:4px;padding:2px 4px;font-size:12px;text-align:right';
+  el.innerHTML = '';
+  el.appendChild(input);
+  input.focus(); input.select();
+  const done = () => { setManualPrice(tk, input.value); };
+  input.addEventListener('keydown', e => { if (e.key==='Enter') done(); if (e.key==='Escape') renderAll(); e.stopPropagation(); });
+  input.addEventListener('blur', done);
+}
+loadManualPrices();
+
 // Take Profits (persistidos en localStorage)
 let TAKE_PROFITS = {};
 function loadTP() {
@@ -1850,7 +1886,7 @@ function renderOperaciones() {
       <td><span class="plat">${p.platform}</span></td>
       <td class="r">${fmtQty(p.qty, tk)}</td>
       <td class="r">$${fn(p.avgPrice, p.avgPrice<1?5:3)}</td>
-      <td class="r" style="color:var(--blue4)" title="${PRICE_SOURCE[tk]||'sin actualizar'}">${PRICE_SOURCE[tk]==='avg'?'<span style="color:var(--text3);font-size:10px">≈</span> ':''  }$${fn(cot, cot<1?5:3)}${!PRICE_SOURCE[tk]?'<span style="color:#ef4444;font-size:9px;margin-left:2px" title="Precio no actualizado desde BYMA">⚠</span>':''}</td>
+      <td class="r" style="color:var(--blue4);cursor:pointer" title="Doble clic para editar precio manualmente&#10;Fuente: ${PRICE_SOURCE[tk]||'sin actualizar'}" ondblclick="event.stopPropagation();editPriceInline('${tk}',this)" id="price-cell-${tk}">${PRICE_SOURCE[tk]==='manual'?'<span style="color:#f59e0b;font-size:9px" title="Precio manual">✎ </span>':PRICE_SOURCE[tk]==='avg'?'<span style="color:var(--text3);font-size:10px">≈</span> ':''  }$${fn(cot, cot<1?5:3)}${!PRICE_SOURCE[tk]?'<span style="color:#ef4444;font-size:9px;margin-left:2px" title="Precio no actualizado desde BYMA">⚠</span>':''}</td>
       <td class="r"><strong>${fmt(val)}</strong></td>
       <td class="r ${pnl>=0?'pos':'neg'}">${fmt(pnl)}</td>
       <td class="r"><span class="badge ${pnl>=0?'bp':'bn'}">${fmtPct(pct)}</span></td>
