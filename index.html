@@ -1557,6 +1557,7 @@ async function fetchQuotes() {
       if (r.ok) {
         const d = await r.json();
         cryptos.forEach(tk => {
+          if (PRICE_SOURCE[tk] === 'manual') return; // nunca pisar precio manual
           if (CG_IDS[tk] && d[CG_IDS[tk]]?.usd) {
             PRICES[tk] = d[CG_IDS[tk]].usd; PRICE_SOURCE[tk] = 'CG'; fetched++;
             const chg = d[CG_IDS[tk]]?.usd_24h_change;
@@ -1606,15 +1607,14 @@ async function fetchQuotes() {
               });
 
               bymaTks.forEach(tk => {
+                if (PRICE_SOURCE[tk] === 'manual') return; // nunca pisar precio manual
                 if (sheetPrices[tk] > 0) {
                   PRICES[tk] = sheetPrices[tk];
                   PRICE_SOURCE[tk] = 'Sheet';
                   fetched++;
                 } else {
-                  // Ticker no encontrado en hoja → usar precio de compra como fallback
                   if (!PRICES[tk]) PRICES[tk] = POSITIONS[tk]?.avgPrice || 0;
                   PRICE_SOURCE[tk] = 'avg';
-                  console.warn(`[PRECIOS] ${tk} no en hoja PRECIOS — usando precio de compra`);
                 }
               });
 
