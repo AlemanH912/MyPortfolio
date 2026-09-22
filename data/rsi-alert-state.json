@@ -1,12 +1,12 @@
 {
-  "zone": "overbought",
-  "zoneSince": 1789995600,
+  "zone": "neutral",
+  "zoneSince": null,
   "lastAlertCandleTime": 1790035200,
   "lastBearishDivTime": 1790020800,
   "lastBullishDivTime": 1789851600,
   "lastBearishConfluenceTime": 1790020800,
   "lastBullishConfluenceTime": null,
-  "rsi": 71.03226644270111,
-  "poc": 86150.6798,
-  "updatedAt": "2026-09-22T00:53:17.855Z"
+  "rsi": 59.435141528752524,
+  "poc": 85773.895,
+  "updatedAt": "2026-09-22T05:51:01.446Z"
 }
