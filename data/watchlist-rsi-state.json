@@ -1,192 +1,192 @@
 {
   "ETH": {
     "zone": "neutral",
-    "rsi": 63.17599934194173,
-    "price": 2683.88,
+    "rsi": 63.591680189469244,
+    "price": 2691.4,
     "lastBearishDivTime": 1788652800,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.999Z"
+    "updatedAt": "2026-09-26T00:05:06.651Z"
   },
   "BTC": {
     "zone": "neutral",
-    "rsi": 65.41818817072075,
-    "price": 84378.31,
+    "rsi": 64.30763535199824,
+    "price": 84093.13,
     "lastBearishDivTime": 1789344000,
     "lastBullishDivTime": 1789430400,
     "lastBearishConfluenceTime": 1788134400,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:31.033Z"
+    "updatedAt": "2026-09-26T00:05:06.667Z"
   },
   "BMA": {
     "zone": "oversold",
-    "rsi": 28.79392872128247,
+    "rsi": 28.354092149101035,
     "price": 71,
     "lastBearishDivTime": 1785418200,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:29.395Z"
+    "updatedAt": "2026-09-26T00:05:05.455Z"
   },
   "PAM": {
     "zone": "neutral",
-    "rsi": 35.210731427790336,
+    "rsi": 34.87746312282198,
     "price": 78.66999816894531,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:29.471Z"
+    "updatedAt": "2026-09-26T00:05:05.503Z"
   },
   "MELI": {
     "zone": "neutral",
-    "rsi": 36.35689416674475,
+    "rsi": 36.26484040164717,
     "price": 1754.1300048828125,
     "lastBearishDivTime": 1788355800,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:29.545Z"
+    "updatedAt": "2026-09-26T00:05:05.556Z"
   },
   "BIDU": {
     "zone": "neutral",
-    "rsi": 36.39713121128662,
+    "rsi": 36.15971636498424,
     "price": 88.08000183105469,
     "lastBearishDivTime": 1789997400,
     "lastBullishDivTime": 1785245400,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": 1785245400,
-    "updatedAt": "2026-09-24T23:58:29.617Z"
+    "updatedAt": "2026-09-26T00:05:05.603Z"
   },
   "MSFT": {
     "zone": "neutral",
-    "rsi": 54.364766488873954,
+    "rsi": 54.366059545866314,
     "price": 497.92999267578125,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:29.710Z"
+    "updatedAt": "2026-09-26T00:05:05.665Z"
   },
   "YPF": {
     "zone": "neutral",
-    "rsi": 51.676529213301556,
+    "rsi": 51.729597499327475,
     "price": 53.61000061035156,
     "lastBearishDivTime": 1785504600,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:29.802Z"
+    "updatedAt": "2026-09-26T00:05:05.725Z"
   },
   "SUPV": {
     "zone": "oversold",
-    "rsi": 28.196987594420648,
+    "rsi": 27.792701107098083,
     "price": 7.460000038146973,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:29.937Z"
+    "updatedAt": "2026-09-26T00:05:05.779Z"
   },
   "TGS": {
     "zone": "neutral",
-    "rsi": 35.380143012669336,
+    "rsi": 35.123838364496095,
     "price": 27.18000030517578,
     "lastBearishDivTime": 1785504600,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.019Z"
+    "updatedAt": "2026-09-26T00:05:05.848Z"
   },
   "UBER": {
     "zone": "neutral",
-    "rsi": 36.35854576910901,
+    "rsi": 36.36096303074035,
     "price": 69.22000122070312,
     "lastBearishDivTime": 1789392600,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.155Z"
+    "updatedAt": "2026-09-26T00:05:05.893Z"
   },
   "GGAL": {
-    "zone": "neutral",
-    "rsi": 30.021233445684913,
+    "zone": "oversold",
+    "rsi": 29.666622737045813,
     "price": 39.59000015258789,
     "lastBearishDivTime": null,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.241Z"
+    "updatedAt": "2026-09-26T00:05:06.219Z"
   },
   "TSLA": {
     "zone": "neutral",
-    "rsi": 59.136190761537826,
+    "rsi": 59.1383916680214,
     "price": 377.94000244140625,
     "lastBearishDivTime": 1789651800,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.318Z"
+    "updatedAt": "2026-09-26T00:05:06.265Z"
   },
   "AMD": {
     "zone": "overbought",
-    "rsi": 72.82471432421384,
+    "rsi": 72.82608614451352,
     "price": 629.260009765625,
     "lastBearishDivTime": null,
     "lastBullishDivTime": 1789392600,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.389Z"
+    "updatedAt": "2026-09-26T00:05:06.309Z"
   },
   "BABA": {
     "zone": "neutral",
-    "rsi": 43.57659848682579,
+    "rsi": 43.578707751347785,
     "price": 110.62999725341797,
     "lastBearishDivTime": 1785850200,
     "lastBullishDivTime": 1789565400,
     "lastBearishConfluenceTime": 1785850200,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.525Z"
+    "updatedAt": "2026-09-26T00:05:06.364Z"
   },
   "AAPL": {
     "zone": "neutral",
-    "rsi": 61.32361926407384,
+    "rsi": 61.323657340884544,
     "price": 335.9200134277344,
     "lastBearishDivTime": 1789651800,
     "lastBullishDivTime": null,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.625Z"
+    "updatedAt": "2026-09-26T00:05:06.433Z"
   },
   "INTC": {
     "zone": "overbought",
-    "rsi": 73.01341735226778,
+    "rsi": 73.01463236621731,
     "price": 127.38999938964844,
     "lastBearishDivTime": null,
     "lastBullishDivTime": 1788269400,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.714Z"
+    "updatedAt": "2026-09-26T00:05:06.500Z"
   },
   "TS": {
     "zone": "neutral",
-    "rsi": 50.44608368489691,
+    "rsi": 50.59359595325954,
     "price": 55.880001068115234,
     "lastBearishDivTime": 1788960600,
     "lastBullishDivTime": 1786627800,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.818Z"
+    "updatedAt": "2026-09-26T00:05:06.560Z"
   },
   "NVDA": {
     "zone": "neutral",
-    "rsi": 54.71783102213887,
+    "rsi": 54.7202255112029,
     "price": 224.5800018310547,
     "lastBearishDivTime": null,
     "lastBullishDivTime": 1788269400,
     "lastBearishConfluenceTime": null,
     "lastBullishConfluenceTime": null,
-    "updatedAt": "2026-09-24T23:58:30.910Z"
+    "updatedAt": "2026-09-26T00:05:06.616Z"
   }
 }
