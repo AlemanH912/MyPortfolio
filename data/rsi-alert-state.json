@@ -2,11 +2,11 @@
   "zone": "neutral",
   "zoneSince": null,
   "lastAlertCandleTime": 1794175200,
-  "lastBearishDivTime": 1793739600,
+  "lastBearishDivTime": 1794294000,
   "lastBullishDivTime": 1794247200,
   "lastBearishConfluenceTime": 1792616400,
   "lastBullishConfluenceTime": 1793916000,
-  "rsi": 47.74013407803983,
-  "poc": 74722.1782,
-  "updatedAt": "2026-11-10T02:32:00.355Z"
+  "rsi": 40.00443626637199,
+  "poc": 74700.0562,
+  "updatedAt": "2026-11-10T10:26:13.597Z"
 }
