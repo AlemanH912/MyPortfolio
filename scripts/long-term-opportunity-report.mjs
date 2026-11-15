@@ -10,7 +10,10 @@
 //   - Precio por debajo de su "número de Graham" (valor razonable
 //     clásico de Benjamin Graham: sqrt(22.5 × EPS × valor libro)).
 // Una acción se marca como "oportunidad destacada" si cumple al menos
-// 2 de esas 4 señales. El mensaje semanal SOLO incluye las que destacan
+// 3 de esas 4 señales (exigente a propósito, para que la lista sea
+// realmente corta incluso en semanas de caída generalizada del
+// mercado, donde muchas acciones cumplirían 2 señales a la vez sin
+// decir demasiado). El mensaje semanal SOLO incluye las que destacan
 // esa semana (puede no llegar nada si ninguna se gana el lugar).
 //
 // Para cripto (BTC/ETH) no hay "oportunidad destacada" filtrada: se
@@ -39,7 +42,7 @@ const BTC_HALVING_DATE = new Date('2024-04-20T00:00:00Z');
 const DISCOUNT_52W_THRESHOLD = 0.15; // 15% debajo del máximo de 52 semanas
 const ANALYST_UPSIDE_THRESHOLD = 0.15; // 15% de upside implícito
 const PEG_THRESHOLD = 1.5;
-const MIN_SIGNALS_TO_FLAG = 2;
+const MIN_SIGNALS_TO_FLAG = 3;
 
 const FMP_KEY = process.env.FMP_API_KEY;
 const BROWSER_UA =
