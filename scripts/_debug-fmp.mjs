@@ -5,10 +5,11 @@ const KEY = process.env.FMP_API_KEY;
 if (!KEY) throw new Error('Falta FMP_API_KEY');
 
 const endpoints = [
-  `https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=${KEY}`,
-  `https://financialmodelingprep.com/api/v3/ratios-ttm/AAPL?apikey=${KEY}`,
-  `https://financialmodelingprep.com/api/v3/price-target-summary/AAPL?apikey=${KEY}`,
-  `https://financialmodelingprep.com/api/v3/key-metrics-ttm/AAPL?apikey=${KEY}`,
+  `https://financialmodelingprep.com/stable/quote?symbol=AAPL&apikey=${KEY}`,
+  `https://financialmodelingprep.com/stable/ratios-ttm?symbol=AAPL&apikey=${KEY}`,
+  `https://financialmodelingprep.com/stable/price-target-consensus?symbol=AAPL&apikey=${KEY}`,
+  `https://financialmodelingprep.com/stable/key-metrics-ttm?symbol=AAPL&apikey=${KEY}`,
+  `https://financialmodelingprep.com/stable/financial-growth?symbol=AAPL&apikey=${KEY}`,
 ];
 
 for (const url of endpoints) {
