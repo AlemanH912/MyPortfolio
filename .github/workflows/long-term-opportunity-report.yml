@@ -22,4 +22,5 @@ jobs:
       - name: Evaluar oportunidades de largo plazo y notificar
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
         run: node scripts/long-term-opportunity-report.mjs
