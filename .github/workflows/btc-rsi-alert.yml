@@ -1,9 +1,9 @@
 name: Cripto RSI 1h Alert (BTC + ETH)
 
 on:
-  schedule:
-    # Cada 15 minutos, usando la vela de 1h en curso para avisar más rápido.
-    - cron: '*/15 * * * *'
+  # Deshabilitado: se reemplazó por el reporte semanal de oportunidades
+  # de largo plazo (long-term-opportunity-report.yml). Se deja solo el
+  # disparo manual por si hace falta reactivarlo puntualmente.
   workflow_dispatch: {}
 
 permissions:

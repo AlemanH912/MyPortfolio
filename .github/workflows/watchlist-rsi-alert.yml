@@ -1,9 +1,9 @@
 name: Watchlist RSI Diario
 
 on:
-  schedule:
-    # 21:30 UTC (~18:30 ART), de lunes a viernes, con margen tras el cierre de NYSE/NASDAQ.
-    - cron: '30 21 * * 1-5'
+  # Deshabilitado: se reemplazó por el reporte semanal de oportunidades
+  # de largo plazo (long-term-opportunity-report.yml). Se deja solo el
+  # disparo manual por si hace falta reactivarlo puntualmente.
   workflow_dispatch: {}
 
 permissions:

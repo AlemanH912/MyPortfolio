@@ -1,0 +1,25 @@
+name: Reporte Semanal de Oportunidades (Largo Plazo)
+
+on:
+  schedule:
+    # Domingo 23:00 UTC (~20:00 ART), para arrancar la semana con el panorama.
+    - cron: '0 23 * * 0'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check-opportunities:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Evaluar oportunidades de largo plazo y notificar
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: node scripts/long-term-opportunity-report.mjs
